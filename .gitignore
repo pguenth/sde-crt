@@ -1,0 +1,8 @@
+bin/
+build/
+lib/
+out/
+tests/
+*/.undodir/
+__Tagbar__.*
+*/__pycache__/
