@@ -1,7 +1,7 @@
 #include <iostream>
-#include "batch.h"
-#include "pseudoparticlestate.h"
-#include "breakpointstate.h"
+#include "batch_sourcetest.h"
+#include "batch/pseudoparticlestate.h"
+#include "batch/breakpointstate.h"
 #include <vector>
 #include <string>
 #include <chrono>

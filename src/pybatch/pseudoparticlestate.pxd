@@ -6,10 +6,10 @@ from libcpp cimport bool
 
 from pybatch.breakpointstate cimport BreakpointState
 
-cdef extern from "pseudoparticlestate.cpp":
+cdef extern from "batch/pseudoparticlestate.cpp":
     pass
 
-cdef extern from "pseudoparticlestate.h":
+cdef extern from "batch/pseudoparticlestate.h":
     cdef cppclass SpaceTimePoint:
         double t
         VectorXd x

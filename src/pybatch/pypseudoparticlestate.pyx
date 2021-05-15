@@ -10,8 +10,6 @@ import numpy as np
 from libcpp cimport bool
 
 cdef class PySpaceTimePoint:
-    #cdef SpaceTimePoint *_spacetimepoint
-    #cdef bool _owned
     def __cinit__(self, double t, np.ndarray[np.float64_t] x):
         self._spacetimepoint = new SpaceTimePoint(t, Map[VectorXd](x))
         self._owned = True

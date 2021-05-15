@@ -14,6 +14,7 @@ kwargs_ext = { 'include_dirs' : include_dirs,
                'extra_compile_args' : extra_compile_args }
 
 extensions = [
+        Extension("pybatch.special.sourcetest", [cython_path + "special/sourcetest.pyx"], **kwargs_ext),
         Extension("pybatch.pybatch", [cython_path + "pybatch.pyx"], **kwargs_ext),
         Extension("pybatch.pybreakpointstate", [cython_path + "pybreakpointstate.pyx"], **kwargs_ext),
         Extension("pybatch.breakpointstate", [cython_path + "breakpointstate.pyx"], **kwargs_ext),

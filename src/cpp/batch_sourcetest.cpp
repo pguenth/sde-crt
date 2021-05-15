@@ -1,4 +1,4 @@
-#include "batch.h"
+#include "batch_sourcetest.h"
 
 double sourcetest_integrate(const Eigen::VectorXd& x){
     Eigen::VectorXd x_new = x.unaryExpr([](double x){

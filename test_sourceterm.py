@@ -9,7 +9,7 @@ import time
 import sys
 sys.path.insert(0, 'lib')
 print(sys.path)
-from pybatch.pybatch import *
+from pybatch.special.sourcetest import *
 from pybatch.pybreakpointstate import *
 
 logging.basicConfig(level=logging.INFO,

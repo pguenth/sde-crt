@@ -1,6 +1,6 @@
 # distutils: language = c++
 # cython: language_level=3
-cdef extern from "breakpointstate.h":
+cdef extern from "batch/breakpointstate.h":
     ctypedef enum BreakpointState:
         UNDEFINED "BreakpointState::UNDEFINED"
         NONE "BreakpointState::NONE"
