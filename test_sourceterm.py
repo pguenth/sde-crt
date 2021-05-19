@@ -1,14 +1,11 @@
 import matplotlib.pyplot as plt
 import matplotlib
-from numpy.random import default_rng
 import numpy as np
-from enum import Enum
 import logging
 import time
 
 import sys
 sys.path.insert(0, 'lib')
-print(sys.path)
 from pybatch.special.sourcetest import *
 from pybatch.pybreakpointstate import *
 
@@ -19,15 +16,6 @@ logging.basicConfig(level=logging.INFO,
 plt_dir = "out"
 plt_format = "png"
 matplotlib.use('GTK3Agg')
-
-
-class EndPosition():
-    # End_type: of type EndPositionType
-    # value: stores the exit time if end_type is BOUNDARY_*
-    #        stores the exit position if end_type is TIME
-    def __init__(self, end_type, end_value):
-        self.end_type = end_type
-        self.end_value = end_value
 
 def green_histograms(bin_count, states, use_x_or_t, end_type, value_range):
     if use_x_or_t == "t":
@@ -43,9 +31,9 @@ def green_histograms(bin_count, states, use_x_or_t, end_type, value_range):
     return param, G / len(states)
 
 def green_all_new(bin_count, states, x_range, T):
-    s0, G0 = green_histograms(bin_count, states, "x", PyBreakpointState.LOWER, (0, T))
-    s1, G1 = green_histograms(bin_count, states, "x", PyBreakpointState.UPPER, (0, T))
-    st, Gt = green_histograms(bin_count, states, "t", PyBreakpointState.TIME, x_range)
+    s0, G0 = green_histograms(bin_count, states, "t", PyBreakpointState.LOWER, (0, T))
+    s1, G1 = green_histograms(bin_count, states, "t", PyBreakpointState.UPPER, (0, T))
+    st, Gt = green_histograms(bin_count, states, "x", PyBreakpointState.TIME, x_range)
     
     green_x0 = np.array([(T - s, G) for s, G in zip(s0, G0)], dtype = np.dtype([('t', float), ('G', float)]))
     green_x1 = np.array([(T - s, G) for s, G in zip(s1, G1)], dtype = np.dtype([('t', float), ('G', float)]))
