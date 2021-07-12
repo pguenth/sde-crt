@@ -1,4 +1,4 @@
-#include "batch_kruells.h"
+#include "batch_kruells1.h"
 
 inline double kruells1_kappa(double x, double y){
     return 1;
@@ -35,7 +35,7 @@ Eigen::MatrixXd kruells1_diffusion(const Eigen::VectorXd& x, double Xsh, double 
     return v;
 }
 
-BatchKruells1::BatchKruells1(double x0, double y0, int N, double Tmax, double Xsh, double a, double b){
+BatchKruells1::BatchKruells1(double x0, double y0, int N, double Tmax, double L, double Xsh, double a, double b){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -45,10 +45,10 @@ BatchKruells1::BatchKruells1(double x0, double y0, int N, double Tmax, double Xs
     _tlimit = new BreakpointTimelimit(Tmax);
 
     // spatial breakpoint
-    //Eigen::VectorXd xmin(1), xmax(1);
-    //xmin << x_min;
-    //xmax << x_max;
-    //_slimit = new BreakpointSpatial(xmin, xmax);
+    Eigen::VectorXd xmin(2), xmax(2);
+    xmin << -L, 0;
+    xmax << L, 1000;
+    _slimit = new BreakpointSpatial(xmin, xmax);
 
     // callbacks
     // not sure if &function is better
@@ -65,7 +65,7 @@ BatchKruells1::BatchKruells1(double x0, double y0, int N, double Tmax, double Xs
     // register options
     PseudoParticleOptions opt;
     opt.breakpoints.push_back(_tlimit);
-    //opt.breakpoints.push_back(_slimit);
+    opt.breakpoints.push_back(_slimit);
     opt.process = _process;
     opt.timestep = 0.001;
 

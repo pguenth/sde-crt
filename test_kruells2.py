@@ -81,7 +81,7 @@ def ppwrapper(x, T, N, plot_trajectories = 0, plot_index = 0):
     #logging.info("Entering C++ simulation")
     start_time = time.perf_counter()
 
-    pyb = PyBatchKruells1(x[0], x[1], N, T, 10, 0.001, 0.075, 0.025)
+    pyb = PyBatchKruells1(x[0], x[1], N, T, 0.002, 0.125, 0.075)
     pyb.run()
     states = pyb.states()
 
@@ -109,26 +109,60 @@ def ppwrapper(x, T, N, plot_trajectories = 0, plot_index = 0):
 
     return states
 
+def solve_timerange(states, boundary_t, timepoints, bin_count, index, xrange):
+    spacetimepoints = {}
+    timepoints = sorted(timepoints)
 
-def solve_timerange(times, x0, N, index, bin_count = 25):
+    results = {}
+
+    for t in timepoints:
+        spacetimepoints[t] = []
+
+    for state in states:
+        t_iterator = iter(timepoints)
+        current = next(t_iterator)
+        for p in state.trajectory:
+            if p.t > current:
+                spacetimepoints[current].append(p)
+                try:
+                    current = next(t_iterator)
+                except StopIteration:
+                    break
+            
+    for t, points in spacetimepoints.items():
+        logging.info("Solving for t=%s", t)
+        st, Gt = green_histograms(bin_count, states, index, PyBreakpointState.TIME, xrange)
+        results[t] = (st, Gt)
+
+    return results
+        
+            
+
+
+def plot_timerange(timeseries, filename):
     fig, ax = plt.subplots(1)
     ax.set_title("Timerange")
     ax.set_xscale("log")
     ax.set_yscale("log")
-    for T in times:
-        logging.info("Solving for T=%s", T)
-        states = ppwrapper(x0, T, N, 10, index)
-        st, Gt = green_histograms(bin_count, states, index, PyBreakpointState.TIME, [1, 1.5])
-        ax.plot(st, Gt, label="T=" + str(T))
+    for t, (st, Gt) in timeseries.items():
+        ax.plot(st, Gt, label="T=" + str(t))
 
     ax.legend()
-    ax.set_xlim(1, 2)
-    fig.savefig(plt_dir + "/timerange." + plt_format)
+    fig.savefig(plt_dir + "/timerange" + filename + "." + plt_format)
 
-boundary_t = lambda x : 1
-    
 
-#solve_timerange(np.array([0.64, 2.0, 6.4, 10]), [0, 1], 5000, 1)
-solve_timerange(np.array([10]), [0, 1], 1000, 1)
+t_boundary = lambda x : 1
+timepoints = 10*np.array([0.01, 0.05, 0.2, 0.5, 1])
+bin_count = 100
+index = 1
+xrange = [0, 5]
 
+logging.info("Running C++ simulation")
+states = ppwrapper([0, 1], max(timepoints), 5, plot_trajectories = 0, plot_index = index)
+
+logging.info("Extracting timeseries")
+timeseries = solve_timerange(states, t_boundary, timepoints, bin_count, index, xrange)
+
+logging.info("Plotting timeseries")
+plot_timerange(timeseries, "new")
 

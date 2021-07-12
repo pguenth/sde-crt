@@ -4,8 +4,8 @@ from pybatch.batch cimport PseudoParticleBatch
 from pybatch.pybatch cimport PyPseudoParticleBatch
 
 cdef class PyBatchKruells1(PyPseudoParticleBatch):
-    def __cinit__(self, double x0, double y0, int N, double Tmax, double Xsh, double a, double b):#, double x_min, double x_max):
-        self._batch = <PseudoParticleBatch *>(new BatchKruells1(x0, y0, N, Tmax, Xsh, a, b))
+    def __cinit__(self, double x0, double y0, int N, double Tmax, double L, double Xsh, double a, double b):#, double x_min, double x_max):
+        self._batch = <PseudoParticleBatch *>(new BatchKruells1(x0, y0, N, Tmax, L, Xsh, a, b))
 
     @staticmethod
     cdef BatchKruells1 *_cast_(PseudoParticleBatch *_ptr):

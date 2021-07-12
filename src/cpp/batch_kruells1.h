@@ -1,5 +1,5 @@
-#ifndef BATCH_KRUELLS_H
-#define BATCH_KRUELLS_H
+#ifndef BATCH_KRUELLS1_H
+#define BATCH_KRUELLS1_H
 
 #include <Eigen/Core>
 #include <vector>
@@ -15,13 +15,13 @@ using namespace std::placeholders;
 class BatchKruells1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                //BreakpointSpatial *_slimit;
+                BreakpointSpatial *_slimit;
                 WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
         public:
-                BatchKruells1(double x0, double y0, int N, double Tmax, double Xsh, double a, double b);//, double x_min, double x_max);
+                BatchKruells1(double x0, double y0, int N, double Tmax, double L, double Xsh, double a, double b);//, double x_min, double x_max);
                 ~BatchKruells1();
 };
 

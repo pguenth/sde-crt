@@ -6,7 +6,7 @@ import time
 
 import sys
 sys.path.insert(0, 'lib')
-from pybatch.special.kruells1 import *
+from pybatch.special.kruells92 import *
 from pybatch.pybreakpointstate import *
 
 logging.basicConfig(level=logging.INFO,
@@ -19,13 +19,18 @@ matplotlib.use('GTK3Agg')
 
 # index == -1: use time
 # index == 0...Ndim-1 use this dimension
-def green_histograms(bin_count, states, index, end_type, value_range):
+def green_histograms(bin_count, states, index, end_type, value_range = None):
     if index == -1:
         relevant_end_values = [p.t for p in states if p.breakpoint_state == end_type]
-        #logging.info("using t, relevant end values = %s", len(relevant_end_values))
+        logging.info("using t, relevant end values = %s", len(relevant_end_values))
     else:
         relevant_end_values = [p.x[index] for p in states if p.breakpoint_state == end_type]
-        #logging.info("using x, relevant end values = %s", len(relevant_end_values))
+        logging.info("using x, relevant end values = %s", len(relevant_end_values))
+
+    if value_range is None:
+        value_range = [min(relevant_end_values)[0], max(relevant_end_values)[0]]
+
+    print(value_range)
 
     G, edges = np.histogram(relevant_end_values, bin_count, range=value_range)
     param = edges[:-1] + (edges[1:] - edges[:-1]) / 2
@@ -75,13 +80,15 @@ def plot_trajectory(ax, state, index):
         tvals.append(p.t)
         xvals.append(p.x[index])
 
+    ax.set_xlabel("time")
+    ax.set_ylabel("vector index " + str(index))
     ax.plot(tvals, xvals, marker = None, linestyle = '-')
 
-def ppwrapper(x, T, N, plot_trajectories = 0, plot_index = 0):
+def ppwrapper(x, T, N, Tesc, plot_trajectories = 0, plot_index = 0):
     #logging.info("Entering C++ simulation")
     start_time = time.perf_counter()
 
-    pyb = PyBatchKruells1(x[0], x[1], N, T, 10, 0.001, 0.075, 0.025)
+    pyb = PyBatchKruells921(x[0], x[1], N, T, Tesc)
     pyb.run()
     states = pyb.states()
 
@@ -110,25 +117,28 @@ def ppwrapper(x, T, N, plot_trajectories = 0, plot_index = 0):
     return states
 
 
-def solve_timerange(times, x0, N, index, bin_count = 25):
+def solve_timerange(times, x0, N, Tesc, index):
+    bin_count = int(N / 50)
     fig, ax = plt.subplots(1)
     ax.set_title("Timerange")
-    ax.set_xscale("log")
+    ax.set_xlabel("vector index " + str(index))
+    ax.set_ylabel("pseudoparticle density")
+    #ax.set_xscale("log")
     ax.set_yscale("log")
     for T in times:
         logging.info("Solving for T=%s", T)
-        states = ppwrapper(x0, T, N, 10, index)
-        st, Gt = green_histograms(bin_count, states, index, PyBreakpointState.TIME, [1, 1.5])
-        ax.plot(st, Gt, label="T=" + str(T))
+        states = ppwrapper(x0, T, N, Tesc, plot_trajectories=1, plot_index=index)
+        st, Gt = green_histograms(bin_count, states, index, PyBreakpointState.TIME)#, [1, 1.5])
+        ax.plot(np.log10(np.e) * st, Gt, label="T=" + str(T))
 
     ax.legend()
-    ax.set_xlim(1, 2)
+    #ax.set_xlim(0.9, 2)
     fig.savefig(plt_dir + "/timerange." + plt_format)
 
 boundary_t = lambda x : 1
     
 
 #solve_timerange(np.array([0.64, 2.0, 6.4, 10]), [0, 1], 5000, 1)
-solve_timerange(np.array([10]), [0, 1], 1000, 1)
+solve_timerange(np.array([1, 50]), [1, 1], 2000, 5, 1)
 
 

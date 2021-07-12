@@ -3,6 +3,7 @@ build/
 lib/
 out/
 tests/
+pickle/
 */.undodir/
 __Tagbar__.*
 */__pycache__/
