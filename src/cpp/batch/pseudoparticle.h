@@ -26,6 +26,7 @@ typedef std::function<Eigen::MatrixXd(Eigen::VectorXd&)> diffusion_t;
 
 typedef struct PseudoParticleOptions {
     double timestep = 1;
+        bool tracked = true;
 
     std::list<TrajectoryBreakpoint *> breakpoints;
     std::list<TrajectoryBoundary *> boundaries;

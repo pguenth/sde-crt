@@ -13,30 +13,31 @@ SpaceTimePoint::operator std::string() const {
 
 //PseudoParticleState::PseudoParticleState(const PseudoParticle& particle) : _particle(particle) { }
 
-PseudoParticleState::PseudoParticleState() : _finished(false) {}
+PseudoParticleState::PseudoParticleState() : _finished(false), _tracked(true) {}
 
-PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, const SpaceTimePoint& p0, int max_steps) :
-        _particle(particle), _finished(false) {
-    update(p0);
+PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, const SpaceTimePoint& p0, int max_steps, bool tracked) :
+        _particle(particle), _finished(false), _tracked(tracked) {
+    _trajectory.push_back(p0); // push directly into the trajectory to guarantee non-empty vector
     _pre_allocate(max_steps);
 }
 
-PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, double t0, const Eigen::VectorXd& x0, int max_steps) :
-        _particle(particle), _finished(false) {
+PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, double t0, const Eigen::VectorXd& x0, int max_steps, bool tracked) :
+        _particle(particle), _finished(false), _tracked(tracked) {
 
-    update(t0, x0);
+    // push directly into the trajectory to guarantee non-empty vector
+    SpaceTimePoint s(t0, x0);
+    _trajectory.push_back(s);
     _pre_allocate(max_steps);
 }
 
 void PseudoParticleState::_pre_allocate(int max_steps){
-    if (max_steps > 0) {
+    if (_tracked && max_steps > 0) {
         _trajectory.reserve(max_steps);
     }
 }
 
 // trajectory
 const Eigen::VectorXd& PseudoParticleState::get_x() const {
-    //std::cout << "x: " << get_p().x << "\n";
     return get_p().x;
 }
 
@@ -56,6 +57,10 @@ const trajectory_t& PseudoParticleState::get_trajectory() const {
     // not really nice to return a reference and not a copy
     // consider returning a copy instead
     return _trajectory;
+}
+
+bool PseudoParticleState::tracked() const {
+    return _tracked;
 }
 
 // end state
@@ -87,7 +92,11 @@ void PseudoParticleState::update(const SpaceTimePoint& p){
         throw std::logic_error("Tried to modify a finished state");
     }
 
-    _trajectory.push_back(p);
+    if (_tracked){
+        _trajectory.push_back(p);
+    }else{
+        _trajectory.back() = p;
+    }
 }
 
 void PseudoParticleState::update(double t, const Eigen::VectorXd& x){

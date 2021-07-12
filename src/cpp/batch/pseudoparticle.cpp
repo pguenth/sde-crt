@@ -8,8 +8,13 @@ void PseudoParticle::_construct(PseudoParticleCallbacks callbacks, SpaceTimePoin
         _options.process = new WienerProcess(start.x.size(), 0);
     }
 
-    int max_steps = estimate_max_steps(start);
-    _state = PseudoParticleState(this, start, max_steps);
+    int max_steps;
+    if (_options.tracked){
+        max_steps = estimate_max_steps(start);
+    }else{
+        max_steps = 1;
+    }
+    _state = PseudoParticleState(this, start, max_steps, _options.tracked);
 }
 
 PseudoParticle::PseudoParticle(PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){

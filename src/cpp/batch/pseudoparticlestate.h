@@ -28,6 +28,7 @@ class PseudoParticleState {
         trajectory_t _trajectory;
 
         bool _finished;
+        bool _tracked;
         BreakpointState _breakpoint_state;
 
     protected:
@@ -36,8 +37,8 @@ class PseudoParticleState {
     public:
         // constructors
         PseudoParticleState();
-        PseudoParticleState(const PseudoParticle *particle, const SpaceTimePoint& p0, int max_steps = 0);
-        PseudoParticleState(const PseudoParticle *particle, double t0, const Eigen::VectorXd& x0, int max_steps = 0);
+        PseudoParticleState(const PseudoParticle *particle, const SpaceTimePoint& p0, int max_steps = 0, bool tracked = true);
+        PseudoParticleState(const PseudoParticle *particle, double t0, const Eigen::VectorXd& x0, int max_steps = 0, bool tracked = true);
         //~PseudoParticleState();
         
 
@@ -46,6 +47,7 @@ class PseudoParticleState {
         double get_t() const;
         const SpaceTimePoint& get_p() const;
         const trajectory_t& get_trajectory() const;
+        bool tracked() const;
 
         // end state
         bool finished() const;
