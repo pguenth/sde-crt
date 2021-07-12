@@ -6,16 +6,17 @@
 
 class PseudoParticleBatch {
     private:
-        int _N;
+        std::vector<SpaceTimePoint> _starts;
         std::vector<PseudoParticle> _particles;
 
         PseudoParticleOptions _options;
         PseudoParticleCallbacks _callbacks;
-        SpaceTimePoint _start;
 
         int _finished_count;
 
-        void _construct();
+        // construct creates all particles and stores/initializes the member variables
+        void _construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
+
         void _one_step_all();
         bool _run_one(int index);
 
@@ -24,7 +25,11 @@ class PseudoParticleBatch {
         void _check_init();
 
     protected:
+        // initialize is called by constructors of this class or its children to fill instances with sensible values from
+        // different sets of parameters
+        // may be replaced by children calling parent constructors
         void initialize(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options);
+        void initialize(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
 
     public:
         PseudoParticleBatch();
@@ -56,6 +61,7 @@ class PseudoParticleBatch {
         bool finished();
         int finished_count();
         int unfinished_count();
+        int count();
 
 
         std::vector<PseudoParticle>& particles();

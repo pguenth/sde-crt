@@ -1,33 +1,33 @@
 #include "pseudoparticlebatch.h"
-PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options) :
-    _N(N), _callbacks(callbacks), _options(options), _start(start) {
-        _construct();
+PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
+    initialize(N, callbacks, start, options);
 }
 
-PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options) : _N(N), _callbacks(callbacks), _options(options) {
-    _start = SpaceTimePoint(t0, x0);
-    _construct();
+PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+    SpaceTimePoint start(t0, x0);
+    initialize(N, callbacks, start, options);
 }
 
-PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options) : _N(N), _options(options), _start(start) {
-    _callbacks = PseudoParticleCallbacks(drift, diffusion);
-    _construct();
+PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options){
+    PseudoParticleCallbacks callbacks(drift, diffusion);
+    initialize(N, callbacks, start, options);
 }
 
-PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options) : _N(N), _options(options) {
-    _start = SpaceTimePoint(t0, x0);
-    _callbacks = PseudoParticleCallbacks(drift, diffusion);
-    _construct();
+PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+    SpaceTimePoint start(t0, x0);
+    PseudoParticleCallbacks callbacks(drift, diffusion);
+    initialize(N, callbacks, start, options);
 }
 
 PseudoParticleBatch::PseudoParticleBatch() {}
 
 void PseudoParticleBatch::initialize(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
-    _N = N;
-    _callbacks = callbacks;
-    _start = start;
-    _options = options;
-    _construct();
+    std::vector<SpaceTimePoint> starts(N, start);
+    initialize(callbacks, starts, options);
+}
+
+void PseudoParticleBatch::initialize(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
+    _construct(callbacks, starts, options);
 }
 
 
@@ -43,17 +43,26 @@ void PseudoParticleBatch::initialize(int N, PseudoParticleCallbacks callbacks, S
 //}
 
 const PseudoParticle& PseudoParticleBatch::operator[] (int index){
-    if (index < 0 || index >= _N){
+    if (index < 0 || index >= count()){
         throw std::invalid_argument("Index out of range");
     }
 
     return _particles[index];
 }
 
-void PseudoParticleBatch::_construct(){
-    _particles = std::vector<PseudoParticle>(_N, PseudoParticle(_callbacks, _start, _options));
+void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
+    _callbacks = callbacks;
+    _options = options;
+    _starts = starts;
+
     _finished_count = 0;
     _initialized = true;
+
+    _particles = std::vector<PseudoParticle>();
+
+    for (auto &s: _starts){
+        _particles.push_back(PseudoParticle(_callbacks, s, _options));
+    }
 }
 
 void PseudoParticleBatch::_check_init(){
@@ -96,12 +105,11 @@ int PseudoParticleBatch::step_all(int steps){
 int PseudoParticleBatch::run(int particle_count){
     _check_init();
 
-    if (particle_count == -1) particle_count = _N;
+    if (particle_count == -1) particle_count = count();
 
-    for (int i = 0; i < _N; i++){
+    for (int i = 0; i < count(); i++){
         if (particle_count <= 0) break;
         if (_run_one(i)) particle_count--;
-        //std::cout << "Running " << i << "\n";
     }
 
     return finished_count();
@@ -110,7 +118,7 @@ int PseudoParticleBatch::run(int particle_count){
 bool PseudoParticleBatch::finished(){
     _check_init();
 
-    if (finished_count() == _N) return true;
+    if (finished_count() == count()) return true;
     else return false;
 }
 
@@ -119,7 +127,11 @@ int PseudoParticleBatch::finished_count(){
 }
 
 int PseudoParticleBatch::unfinished_count(){
-    return _N - _finished_count;
+    return count() - _finished_count;
+}
+
+int PseudoParticleBatch::count(){
+    return _starts.size();
 }
 
 
