@@ -1,5 +1,77 @@
 #include "pseudoparticle.h"
 
+PseudoParticleOptions::PseudoParticleOptions(){}
+
+PseudoParticleOptions::~PseudoParticleOptions(){
+    for (auto &elem : _integrators) delete elem;
+    _integrators.clear();
+}
+
+
+PseudoParticleOptions::PseudoParticleOptions (const PseudoParticleOptions& p){
+    timestep = p.timestep;
+    tracked = p.tracked;
+    breakpoints = p.breakpoints;
+    process = p.process;
+
+    _integrators = std::list<TrajectoryLiveIntegrator *>();
+
+    for (auto liveint : p.integrators()){
+        _integrators.push_back(liveint->clone());
+    }
+
+}
+
+PseudoParticleOptions& PseudoParticleOptions::operator= (const PseudoParticleOptions& p){
+    timestep = p.timestep;
+    tracked = p.tracked;
+    breakpoints = p.breakpoints;
+    process = p.process;
+
+    for (auto &elem : _integrators) delete elem;
+    _integrators.clear();
+
+    for (auto &liveint : p.integrators()){
+        _integrators.push_back(liveint->clone());
+    }
+
+    return *this;
+}
+
+PseudoParticleOptions::PseudoParticleOptions (PseudoParticleOptions&& p){
+    timestep = p.timestep;
+    tracked = p.tracked;
+    breakpoints = p.breakpoints;
+    process = p.process;
+
+    _integrators= std::list<TrajectoryLiveIntegrator *>();
+    for (auto liveint : p.integrators()){
+        _integrators.push_back(liveint->clone());
+    }
+}
+
+PseudoParticleOptions& PseudoParticleOptions::operator= (PseudoParticleOptions&& p){
+    timestep = p.timestep;
+    tracked = p.tracked;
+    breakpoints = p.breakpoints;
+    process = p.process;
+    
+    for (auto &elem : _integrators) delete elem;
+    _integrators.clear();
+
+    _integrators = p.integrators();
+
+    return *this;
+}
+
+const std::list<TrajectoryLiveIntegrator *>& PseudoParticleOptions::integrators() const {
+    return _integrators;
+}
+
+void PseudoParticleOptions::add_integrator(const TrajectoryLiveIntegrator& integrator){
+    _integrators.push_back(integrator.clone());
+}
+
 void PseudoParticle::_construct(PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
     _callbacks = callbacks;
     _options = options;
@@ -49,7 +121,7 @@ bool PseudoParticle::finished() const {
 }
 
 const std::list<TrajectoryLiveIntegrator *> PseudoParticle::integrators() const {
-    return _options.integrators;
+    return _options.integrators();
 }
 
 //functions
@@ -66,7 +138,7 @@ bool PseudoParticle::_break(){
 }
 
 void PseudoParticle::_integrate(){
-    for (auto& i : _options.integrators){
+    for (auto& i : _options.integrators()){
         i->integrate(state(), _options.timestep);
     }
 }

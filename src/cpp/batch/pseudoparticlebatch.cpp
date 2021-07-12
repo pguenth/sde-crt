@@ -176,3 +176,17 @@ std::vector<double> PseudoParticleBatch::apply_integrator(TrajectoryIntegrator& 
     return results;
 }
 
+
+std::vector<std::vector<double>> PseudoParticleBatch::get_integrator_values(){
+    std::vector<std::vector<double>> ret;
+
+    for (auto& p : _particles){
+        ret.push_back(std::vector<double>());
+        auto& pvec = ret.back();
+        for (auto& integrator : p.integrators()){
+            pvec.push_back(integrator->value());
+        }
+    }
+
+    return ret;
+}

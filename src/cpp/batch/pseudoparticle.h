@@ -25,14 +25,27 @@ typedef std::function<Eigen::MatrixXd(Eigen::VectorXd&)> diffusion_t;
 
 
 typedef struct PseudoParticleOptions {
-    double timestep = 1;
+    private:
+        std::list<TrajectoryLiveIntegrator *> _integrators; //owned by this class
+
+    public:
+        double timestep = 1;
         bool tracked = true;
 
-    std::list<TrajectoryBreakpoint *> breakpoints;
-    std::list<TrajectoryBoundary *> boundaries;
-    std::list<TrajectoryLiveIntegrator *> integrators;
+        std::list<TrajectoryBreakpoint *> breakpoints;
+        std::list<TrajectoryBoundary *> boundaries;
 
-    StochasticProcess *process = nullptr;
+        StochasticProcess *process = nullptr;
+
+        PseudoParticleOptions();
+        ~PseudoParticleOptions();
+        PseudoParticleOptions (const PseudoParticleOptions& p);
+        PseudoParticleOptions& operator= (const PseudoParticleOptions& p);
+        PseudoParticleOptions (PseudoParticleOptions&& p);
+        PseudoParticleOptions& operator= (PseudoParticleOptions&& p);
+
+        const std::list<TrajectoryLiveIntegrator *>& integrators() const;
+        void add_integrator(const TrajectoryLiveIntegrator& integrator);
 } PseudoParticleOptions;
 
 typedef struct PseudoParticleCallbacks {

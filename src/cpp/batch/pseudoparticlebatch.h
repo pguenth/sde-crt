@@ -72,6 +72,9 @@ class PseudoParticleBatch {
         // integrate all finished particles with the given integrator
         // returns a vector of the integration results
         std::vector<double> apply_integrator(TrajectoryIntegrator& integrator);
+
+        // returns the value of all live integrators
+        std::vector<std::vector<double>> get_integrator_values();
 };
 
 
