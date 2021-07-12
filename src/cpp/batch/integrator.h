@@ -31,9 +31,21 @@ class TrajectoryLiveIntegrator {
     public:
         virtual void integrate(const PseudoParticleState& particle_state, double timestep) = 0;
         virtual double value() const = 0;
+        virtual TrajectoryLiveIntegrator* clone() const = 0;
 };
 
-class LinearLiveIntegrator : public TrajectoryLiveIntegrator {//<double> {
+//https://stackoverflow.com/questions/5731217/how-to-copy-create-derived-class-instance-from-a-pointer-to-a-polymorphic-base-c
+//CRTP idiom
+
+template <class D>
+class TrajectoryLiveIntegratorB : public TrajectoryLiveIntegrator {
+    public:
+        virtual TrajectoryLiveIntegrator* clone() const {
+            return new D(static_cast<const D&>(*this));
+        }
+};
+
+class LinearLiveIntegrator : public TrajectoryLiveIntegratorB<LinearLiveIntegrator> {//<double> {
     private:
         double _value;
         std::function<double(const Eigen::VectorXd&)> _callback;
