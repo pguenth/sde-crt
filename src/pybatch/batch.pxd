@@ -14,3 +14,4 @@ cdef extern from "batch/pseudoparticlebatch.h":
 
         PseudoParticleState& state(int index)
         const vector[PseudoParticleState] states()
+        vector[vector[double]] get_integrator_values()

@@ -24,8 +24,13 @@ cdef extern from "batch/pseudoparticlestate.h":
         const SpaceTimePoint& get_p()
         const vector[SpaceTimePoint]& get_trajectory()
 
+        #writing state
+        void update(double t, Map[VectorXd]& x)
+        void finish(BreakpointState b)
+
         bool finished()
         BreakpointState get_breakpoint_state()
+        #const vector[double] get_integrator_values()
 
         PseudoParticleState()
 

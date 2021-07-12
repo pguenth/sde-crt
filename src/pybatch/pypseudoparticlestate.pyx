@@ -25,6 +25,13 @@ cdef class PySpaceTimePoint:
         if self._owned:
             del self._spacetimepoint
 
+    def __reduce__(self):
+        return type(self)._reconstruct, (self.t, self.x)
+    
+    @classmethod
+    def _reconstruct(cls, t, x):
+        return cls(t, x)
+
     @property
     def t(self):
         return self._spacetimepoint.t
@@ -37,6 +44,8 @@ cdef class PyPseudoParticleState:
     #cdef PseudoParticleState _ppstate
     def __cinit__(self):
         self._ppstate = PseudoParticleState()
+        self._finished = None
+        self._breakpointstate = None
 
     @staticmethod
     cdef object from_cobj(PseudoParticleState c):
@@ -44,6 +53,21 @@ cdef class PyPseudoParticleState:
         w._ppstate = c
 
         return w
+
+    def __reduce__(self):
+        return type(self)._reconstruct, (self.trajectory, self.finished, self.breakpoint_state)
+
+    @classmethod
+    def _reconstruct(cls, trajectory, finished, bpstate):
+        instance = cls()
+
+        for p in trajectory:
+            instance.update(p)
+
+        if finished:
+            instance.finish(bpstate)
+
+        return instance
 
     @property
     def x(self):
@@ -70,11 +94,23 @@ cdef class PyPseudoParticleState:
 
     @property
     def finished(self):
-        return self._ppstate.finished()
+        if self._finished is None:
+            self._finished = self._ppstate.finished()
+        return self._finished
 
     @property
     def breakpoint_state(self):
-        return py_breakpointstate(self._ppstate.get_breakpoint_state())
+        if self._breakpointstate is None:
+            self._breakpointstate = py_breakpointstate(self._ppstate.get_breakpoint_state())
+        return self._breakpointstate
+
+    def update(self, p):
+        self._ppstate.update(p.t, Map[VectorXd](p.x))
+
+    def finish(self, b):
+        #self._ppstate.finish(c_breakpointstate(b))
+        self._finished = True
+        self._breakpointstate = b
 
 #    def __str__(self):
 #        return str(self._ppstate)

@@ -3,6 +3,8 @@ from libcpp cimport bool
 
 cdef class PyPseudoParticleState:
     cdef PseudoParticleState _ppstate
+    cdef object _finished
+    cdef object _breakpointstate
 
     @staticmethod
     cdef object from_cobj(PseudoParticleState c)

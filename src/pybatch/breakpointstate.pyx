@@ -8,5 +8,16 @@ cdef object py_breakpointstate(BreakpointState bp):
     return PyBreakpointState(<int> bp)
 
 # not implemented, not sure how to do it effectively
-#cdef c_breakpointstate(bp):
-#   pass
+cdef BreakpointState c_breakpointstate(bp):
+    if bp == PyBreakpointState.UNDEFINED:
+        return BreakpointState.UNDEFINED
+    elif bp == PyBreakpointState.NONE:
+        return BreakpointState.NONE
+    elif bp == PyBreakpointState.UPPER:
+        return BreakpointState.UPPER
+    elif bp == PyBreakpointState.LOWER:
+        return BreakpointState.LOWER
+    elif bp == PyBreakpointState.TIME:
+        return BreakpointState.TIME
+
+
