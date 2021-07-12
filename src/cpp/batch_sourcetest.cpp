@@ -20,6 +20,10 @@ Eigen::MatrixXd sourcetest_diffusion(const Eigen::VectorXd& x){
     return v;
 }
 
+double integrator_cb(const Eigen::VectorXd& x){
+    return 0.01 * x(0);
+}
+
 BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, double x_max){
     // get a random generator
     std::random_device rdseed;
@@ -37,6 +41,7 @@ BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, do
 
     // integrator
     _sintegrator = new LinearIntegrator(sourcetest_integrate);
+    LinearLiveIntegrator liveintegrator(sourcetest_integrate);
 
     // callbacks
     // not sure if &function is better
@@ -52,6 +57,10 @@ BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, do
     PseudoParticleOptions opt;
     opt.breakpoints.push_back(_tlimit);
     opt.breakpoints.push_back(_slimit);
+    
+    std::cout << "Test6\n";
+    opt.add_integrator(liveintegrator);
+    std::cout << "Test7\n";
     opt.process = _process;
     opt.timestep = 0.005;
 
