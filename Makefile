@@ -6,6 +6,12 @@ CXXFLAGS = -Wall -g -pg -fPIC -O3 #-fsanitize=address -fno-omit-frame-pointer -O
 AR = ar
 AR_FLAGS = rvs
 
+DOXY = doxygen
+DOXYFILE = Doxyfile
+DOXYDIR = docs/doxy
+
+DOCDIR = docs
+
 SRC_DIR = src
 CPPSRC_DIR = $(SRC_DIR)/cpp
 BUILD_DIR = build
@@ -54,9 +60,16 @@ lib: dirs clib cython
 
 all: dirs bin lib
 
+.PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf $(BIN_DIR)
 	rm -rf $(LIB_DIR)
+	$(MAKE) -C $(DOCDIR) clean
+
+.PHONY: docs
+docs: cython
+	cd $(DOXYDIR) && $(DOXY) $(DOXYFILE)
+	$(MAKE) -C $(DOCDIR) html
 
 print-%  : ; @echo $* = $($*)

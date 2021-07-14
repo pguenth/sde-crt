@@ -3,6 +3,9 @@ import logging
 import numpy as np
 
 class Experiment:
+    """
+    This class wraps a cython PseudoParticleBatch class.
+    """
     def __init__(self, batch_cls, params, **kwargs):
         self.options = {
             'name' : ""
@@ -56,6 +59,14 @@ class Experiment:
         self._integrator_values = np.array(self.batch.integrator_values).T
 
     def plot(self, ax, extractors, **kwargs):
+        """
+        Use the given `extractors` to plot on `ax`
+
+        :param matplotlib.axes.Axes ax: The Axes object to plot on.
+        :param extractors: One extractor or a list of extractors that are used.
+        :type extractors: :py:class:`evaluation.extractor.extractor.Extractor` or [Extractor]
+        :returns: None
+        """
         try:
             for extractor in extractors:
                 extractor.plot(self, ax, **kwargs)

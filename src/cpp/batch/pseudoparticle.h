@@ -57,6 +57,9 @@ typedef struct PseudoParticleCallbacks {
     PseudoParticleCallbacks() {}
 } PseudoParticleCallbacks;
 
+/**
+ * Representation of one pseudo particle 
+ */
 class PseudoParticle {
     private:
         //properties
@@ -73,6 +76,9 @@ class PseudoParticle {
 
     public:
         //constructors
+        /**
+         * Constructs the pseudo particle from its callbacks, its starting point and an options struct
+         */
         PseudoParticle(PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options);
         PseudoParticle(PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options);
         PseudoParticle(drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options);

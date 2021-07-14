@@ -7,3 +7,5 @@ pickle/
 */.undodir/
 __Tagbar__.*
 __pycache__/
+docs-build/
+docs/doxy/xml

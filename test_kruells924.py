@@ -9,12 +9,13 @@ from scipy.stats import linregress
 
 import sys
 sys.path.insert(0, 'lib')
+sys.path.insert(0, 'src/evaluation')
 from pybatch.special.kruells92 import *
 from pybatch.pybreakpointstate import *
 
-from src.evaluation.experiment import *
-from src.evaluation.helpers import *
-from src.evaluation.extractor import *
+from evaluation.experiment import *
+from evaluation.helpers import *
+from evaluation.extractors import *
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -45,8 +46,8 @@ param = { 'dxs' : 0.25,
           'p0' : 0
         }
 
-extractor_x = histogram.HistogramExtractorFinish(0)
-extractor_p = histogram.HistogramExtractorFinish(1)
+extractor_x = HistogramExtractorFinish(0)
+extractor_p = HistogramExtractorFinish(1)
 
 indizes = [0, 1]
 times = np.array([64, 200, 640, 1000])
