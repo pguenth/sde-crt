@@ -22,6 +22,14 @@ cdef cpp_map[string, double] dict_to_map_string_double(dict d):
     return m
 
 cdef class PyPseudoParticleBatch:
+    """
+    Base class wrapping a :cpp:class:`PseudoParticleBatch`
+
+    Inherit the cython wrappers for specialized :cpp:class:`PseudoParticleBatch` C++ classes from this class.
+    The inheriting scheme resembles the inheritance on the C++ side.
+
+    :param dict params: Batch parameters
+    """
     def __init__(self, params):
         self._states = None
         self._integrator_values = None
@@ -34,15 +42,38 @@ cdef class PyPseudoParticleBatch:
             self._batch = NULL
 
     def run(self, int particle_count=-1):
+        """
+        Run all or a given amount of pseudo particles in the batch.
+
+        This method is not available for reconstructed (unpickled) instances.
+
+        :param int particle_count: *(optional)* The number of pseudo particles to run. If -1, all particles are run.
+        :return: *(int)* number of finished particles
+        """
         self._raise_reconstructed_exception()
         return (<PseudoParticleBatch *>(self._batch)).run(particle_count)
 
     def step_all(self, int steps=1):
+        """
+        Simulate a given number of steps for every pseudo particle in the batch.
+
+        This method is not available for reconstructed (unpickled) instances.
+
+        :param int steps: Number of steps to simulate
+        :return: *(int)* Number of finished particles
+        """
         self._raise_reconstructed_exception()
         return (<PseudoParticleBatch *>(self._batch)).step_all(steps)
 
     @property
     def unfinished_count(self):
+        """
+        Number of unfished pseudo particles
+
+        This method is not available for reconstructed (unpickled) instances.
+
+        :return: *(int)* Number of unfinished particles
+        """
         self._raise_reconstructed_exception()
         return (<PseudoParticleBatch *>(self._batch)).unfinished_count()
     
@@ -51,16 +82,31 @@ cdef class PyPseudoParticleBatch:
             raise ValueError("Cannot access C++ level functions on reconstructed objects")
 
     def state(self, int index):
+        """
+        Get a state by index.
+
+        :return: :py:class:`pybatch.pypseudoparticlestate.PyPseudoParticleState` 
+        """
         return self._states[index]
 
     @property
     def states(self):
+        """
+        All pseudo particle states
+
+        :return: [:py:class:`pybatch.pypseudoparticlestate.PyPseudoParticleState`]
+        """
         if self._states is None:
             self._fetch_states()
         return self._states
 
     @property
     def integrator_values(self):
+        """
+        Values of the integrators.
+
+        :return: List of N lists of each M `double` values. N is the number of pseudo particles, M is the number of integrators.
+        """
         if self._integrator_values is None:
             self._fetch_integrator_values()
         return self._integrator_values

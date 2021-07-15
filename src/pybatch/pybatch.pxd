@@ -16,7 +16,6 @@ cimport numpy as np
 
 #https://github.com/cython/cython/wiki/WrappingSetOfCppClasses
 cdef cpp_map[string, double] dict_to_map_string_double(dict d)
-#cdef cpp_map[string, double] dict_to_map_string_double(np.ndarray[str] k, np.ndarray[np.float64_t] v)
 
 cdef class PyPseudoParticleBatch:
     cdef PseudoParticleBatch *_batch

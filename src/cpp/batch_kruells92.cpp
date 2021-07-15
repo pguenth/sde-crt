@@ -30,14 +30,14 @@ Eigen::MatrixXd kruells921_diffusion(const Eigen::VectorXd& x, double T){
     return v;
 }
 
-BatchKruells921::BatchKruells921(double x0, double y0, int N, double Tmax, double Tesc){
+BatchKruells921::BatchKruells921(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
     _process = new WienerProcess(2, &seed);
 
     // time limit breakpoint
-    _tlimit = new BreakpointTimelimit(Tmax);
+    _tlimit = new BreakpointTimelimit(params["Tmax"]);
 
     // spatial breakpoint
     //Eigen::VectorXd xmin(2), xmax(2);
@@ -47,13 +47,13 @@ BatchKruells921::BatchKruells921(double x0, double y0, int N, double Tmax, doubl
 
     // callbacks
     // not sure if &function is better
-    auto call_drift = std::bind(kruells921_drift, _1, Tesc);
-    auto call_diffusion = std::bind(kruells921_diffusion, _1, Tesc);
+    auto call_drift = std::bind(kruells921_drift, _1, params["Tesc"]);
+    auto call_diffusion = std::bind(kruells921_diffusion, _1, params["Tesc"]);
     PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
 
     // starting point
     Eigen::VectorXd start_x(2);
-    start_x << x0, y0;
+    start_x << params["x0"], params["p0"];
     SpaceTimePoint start{0, start_x};
 
 
@@ -66,7 +66,7 @@ BatchKruells921::BatchKruells921(double x0, double y0, int N, double Tmax, doubl
     opt.tracked = false;
 
     // initialize
-    initialize(N, callbacks, start, opt);
+    initialize(params["N"], callbacks, start, opt);
 }
 
 BatchKruells921::~BatchKruells921(){
@@ -92,14 +92,14 @@ Eigen::MatrixXd kruells922_diffusion(const Eigen::VectorXd& x, double Kpar){
     return v;
 }
 
-BatchKruells922::BatchKruells922(double x0, double y0, int N, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s){
+BatchKruells922::BatchKruells922(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
     _process = new WienerProcess(2, &seed);
 
     // time limit breakpoint
-    _tlimit = new BreakpointTimelimit(Tmax);
+    _tlimit = new BreakpointTimelimit(params["Tmax"]);
 
     // spatial breakpoint
     //Eigen::VectorXd xmin(2), xmax(2);
@@ -109,18 +109,18 @@ BatchKruells922::BatchKruells922(double x0, double y0, int N, double Tmax, doubl
     
     // calculate a, b from shock max and compression ratio
 
-    double a = Vs / 2 * (1 + 1/r);
-    double b = a * (r - 1) / (r + 1);
+    double a = params["Vs"] / 2 * (1 + 1/params["r"]);
+    double b = a * (params["r"] - 1) / (params["r"] + 1);
 
     // callbacks
     // not sure if &function is better
-    auto call_drift = std::bind(kruells922_drift, _1, dxs, a, b, beta_s);
-    auto call_diffusion = std::bind(kruells922_diffusion, _1, Kpar);
+    auto call_drift = std::bind(kruells922_drift, _1, params["dxs"], a, b, params["beta_s"]);
+    auto call_diffusion = std::bind(kruells922_diffusion, _1, params["Kpar"]);
     PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
 
     // starting point
     Eigen::VectorXd start_x(2);
-    start_x << x0, y0;
+    start_x << params["x0"], params["p0"];
     SpaceTimePoint start{0, start_x};
 
 
@@ -129,11 +129,11 @@ BatchKruells922::BatchKruells922(double x0, double y0, int N, double Tmax, doubl
     opt.breakpoints.push_back(_tlimit);
     //opt.breakpoints.push_back(_slimit);
     opt.process = _process;
-    opt.timestep = dt;
+    opt.timestep = params["dt"];
     opt.tracked = false;
 
     // initialize
-    initialize(N, callbacks, start, opt);
+    initialize(params["N"], callbacks, start, opt);
 }
 
 BatchKruells922::~BatchKruells922(){
@@ -143,14 +143,14 @@ BatchKruells922::~BatchKruells922(){
     //delete _sintegrator;
 }
 
-BatchKruells923::BatchKruells923(double x0, double y0, double r_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s){
+BatchKruells923::BatchKruells923(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
     _process = new WienerProcess(2, &seed);
 
     // time limit breakpoint
-    _tlimit = new BreakpointTimelimit(Tmax);
+    _tlimit = new BreakpointTimelimit(params["Tmax"]);
 
     // spatial breakpoint
     //Eigen::VectorXd xmin(2), xmax(2);
@@ -160,20 +160,20 @@ BatchKruells923::BatchKruells923(double x0, double y0, double r_inj, double Tmax
     
     // calculate a, b from shock max and compression ratio
 
-    double a = Vs / 2 * (1 + 1/r);
-    double b = a * (r - 1) / (r + 1);
+    double a = params["Vs"] / 2 * (1 + 1/params["r"]);
+    double b = a * (params["r"] - 1) / (params["r"] + 1);
 
     // callbacks
     // not sure if &function is better
-    auto call_drift = std::bind(kruells922_drift, _1, dxs, a, b, beta_s);
-    auto call_diffusion = std::bind(kruells922_diffusion, _1, Kpar);
+    auto call_drift = std::bind(kruells922_drift, _1, params["dxs"], a, b, params["beta_s"]);
+    auto call_diffusion = std::bind(kruells922_diffusion, _1, params["Kpar"]);
     PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
 
     // starting points
     std::vector<SpaceTimePoint> starts;
     Eigen::VectorXd start_x(2);
-    start_x << x0, y0;
-    for (double t = 0; t <= Tmax; t += r_inj){
+    start_x << params["x0"], params["p0"];
+    for (double t = 0; t <= params["Tmax"]; t += params["r_inj"]){
         starts.push_back(SpaceTimePoint(t, start_x));
     }
 
@@ -182,7 +182,7 @@ BatchKruells923::BatchKruells923(double x0, double y0, double r_inj, double Tmax
     opt.breakpoints.push_back(_tlimit);
     //opt.breakpoints.push_back(_slimit);
     opt.process = _process;
-    opt.timestep = dt;
+    opt.timestep = params["dt"];
     opt.tracked = false;
 
     // initialize

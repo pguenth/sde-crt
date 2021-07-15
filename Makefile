@@ -42,6 +42,7 @@ libbatch.so: $(CXX_OBJS)
 libbatch.a: $(CXX_OBJS)
 	$(AR) $(AR_FLAGS) $(LIB_DIR)/$@ $(CXX_OBJS)
 
+.PHONY: dirs
 dirs:
 	@mkdir -p $(LIB_DIR)
 	@mkdir -p $(BIN_DIR)

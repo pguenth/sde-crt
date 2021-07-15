@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.abspath('../../lib'))
 sys.path.insert(0, os.path.abspath('../../src/evaluation'))
 print(sys.path)
 
+import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
@@ -31,7 +32,8 @@ author = 'Patrick Günther'
 # ones.
 extensions = [
         'sphinx.ext.autodoc',
-        'breathe'
+        'breathe',
+        'sphinx_rtd_theme'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -48,13 +50,20 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+html_favicon = 'icon.svg'
+
 # -- Options for breathe --
-breathe_projects = { "sde-crt" : "../doxy/xml/" }
+breathe_projects = { "sde-crt" : "../../docs-build/doxy/xml/" }
 breathe_default_project = "sde-crt"
+
+autodoc_default_options = {
+                'members' : True,
+                'undoc-members' : True,
+}

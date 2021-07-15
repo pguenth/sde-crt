@@ -13,6 +13,7 @@ Welcome to sde-crt's documentation!
    evaluation/index
    libbatch/index
    cython/index 
+   tests/index
 
 
 

@@ -10,6 +10,17 @@ Experiment
 .. autoclass:: ExperimentSet
    :members:
 
+Exporter
+--------
+.. py:module:: evaluation.exporters
+.. autoclass:: Exporter
+   :members:
+   :private-members: _plot
+   :special-members: __call__
+.. autoclass:: ExporterDoublePlot
+.. autoclass:: ExporterDoubleHist
+   :members:
+
 Extractor
 ---------
 .. py:module:: evaluation.extractors
@@ -34,3 +45,4 @@ Helpers
 .. autofunction:: add_curve_to_plot
 .. autofunction:: pickle_cache
 .. autofunction:: generate_timerange
+.. autodecorator:: cached

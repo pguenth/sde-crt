@@ -12,17 +12,17 @@ cdef extern from "batch_kruells92.cpp":
 cdef extern from "batch_kruells92.h":
     cdef cppclass BatchKruells921(PseudoParticleBatch):
         # child methods
-        BatchKruells921(double x0, double y0, int N, double Tmax, double Tesc) except + #, double x_min, double x_max) except +
+        BatchKruells921(map[string, double] params) except + #, double x_min, double x_max) except +
         #vector[double] integrate()
 
     cdef cppclass BatchKruells922(PseudoParticleBatch):
         # child methods
-        BatchKruells922(double x0, double y0, int N, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s) except + #, double x_min, double x_max) except +
+        BatchKruells922(map[string, double] params) except + #, double x_min, double x_max) except +
         #vector[double] integrate()
 
     cdef cppclass BatchKruells923(PseudoParticleBatch):
         # child methods
-        BatchKruells923(double x0, double y0, double r_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s) except + #, double x_min, double x_max) except +
+        BatchKruells923(map[string, double] params) except + #, double x_min, double x_max) except +
         #vector[double] integrate()
 
     cdef cppclass BatchKruells924(PseudoParticleBatch):
