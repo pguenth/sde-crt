@@ -2,7 +2,12 @@
 #define PSEUDOPARTICLEBATCH_H
 
 #include <vector>
+#include <thread>
 #include "pseudoparticle.h"
+#include <boost/asio/thread_pool.hpp>
+#include <boost/asio/post.hpp>
+
+#define NTHREADS 1
 
 class PseudoParticleBatch {
     private:

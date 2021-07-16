@@ -69,15 +69,6 @@ void PseudoParticleBatch::_check_init(){
     if (!_initialized) throw std::runtime_error("Using uninitialized PseudoParticleBatch");
 }
 
-bool PseudoParticleBatch::_run_one(int index){
-    if (!_particles[index].finished()){
-        _particles[index].run();
-        return true;
-    }else{
-        return false;
-    }
-}
-
 void PseudoParticleBatch::_one_step_all(){
     for (auto& p : _particles){
         if (!p.finished() && p.step()){
@@ -98,22 +89,51 @@ int PseudoParticleBatch::step_all(int steps){
 }
 
 
-// runs the given amount of particles, if -1 is given,
-// all particles will be simulated
-//
-// returns the number of finished particles
 int PseudoParticleBatch::run(int particle_count){
     _check_init();
 
     if (particle_count == -1) particle_count = count();
 
-    for (int i = 0; i < count(); i++){
-        if (particle_count <= 0) break;
-        if (_run_one(i)) particle_count--;
+    boost::asio::thread_pool pool(NTHREADS);
+
+    for (int i = 0; i < particle_count; i++){
+        boost::asio::post(pool, [this, i](){ _particles[i].run(); });
     }
+
+    pool.join();
 
     return finished_count();
 }
+
+/*
+ * manual threading 
+ *
+void PseudoParticleBatch::run_mod(int mod_base, int mod_res){
+    int run_count = 0;
+    for (int i = 0; i < count(); i++){
+        if (i % mod_base == mod_res){
+            run_count++;
+            _particles[i].run();
+        }
+    }
+    std::cout << "thread " << mod_res << " of " << mod_base << " runned " << run_count << " particles\n";
+}
+
+int PseudoParticleBatch::run(int particle_count){
+    int nthreads = 1;
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < nthreads; i++){
+        auto callback = [this, nthreads, i]() { run_mod(nthreads, i); };
+        threads.push_back(std::thread(callback));
+    }
+
+    for (auto& thread : threads){
+        thread.join();
+    }
+    
+    return 0;
+}*/
 
 bool PseudoParticleBatch::finished(){
     _check_init();

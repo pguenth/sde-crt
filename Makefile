@@ -1,7 +1,7 @@
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 CXX = g++
-CXXFLAGS = -Wall -g -pg -fPIC -O3 #-fsanitize=address -fno-omit-frame-pointer -O0
+CXXFLAGS = -Wall -g -pg -fPIC -O3 -pthread #-fsanitize=address -fno-omit-frame-pointer -O0
 
 AR = ar
 AR_FLAGS = rvs
@@ -18,8 +18,8 @@ BUILD_DIR = build
 BIN_DIR = bin
 LIB_DIR = lib
 
-CXXLINK =
-CXXINCL = /usr/include/eigen3
+CXXLINK = #-lboost_asio
+CXXINCL = /usr/include/eigen3 #/usr/include/boost
 
 CXX_SRCS := $(call rwildcard,$(CPPSRC_DIR),*.cpp) #$(wildcard $(CPPSRC_DIR)/*.cpp)
 CXX_OBJS := $(patsubst $(CPPSRC_DIR)/%.cpp,$(BUILD_DIR)/%.o, $(CXX_SRCS))
@@ -37,7 +37,7 @@ $(BUILD_DIR)/%.o: $(CPPSRC_DIR)/%.cpp
 	$(CXX) $(INC_FLAGS) -c -o $@ $<
 
 libbatch.so: $(CXX_OBJS)
-	$(CXX) $(CXX_OBJS) -shared -o $(LIB_DIR)/$@
+	$(CXX) $(CXXLINK) $(CXX_OBJS) -shared -o $(LIB_DIR)/$@
 
 libbatch.a: $(CXX_OBJS)
 	$(AR) $(AR_FLAGS) $(LIB_DIR)/$@ $(CXX_OBJS)
