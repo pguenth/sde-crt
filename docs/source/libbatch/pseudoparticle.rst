@@ -36,5 +36,6 @@ Pseudo particle batch
 .. doxygenclass:: PseudoParticleBatch
    :members:
    :undoc-members:
+   :protected-members:
 
 

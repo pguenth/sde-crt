@@ -19,7 +19,9 @@ class PseudoParticleBatch {
 
         int _finished_count;
 
-        // construct creates all particles and stores/initializes the member variables
+        /**
+         * construct creates all particles and stores/initializes the member variables
+         */
         void _construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
 
         void _one_step_all();
@@ -30,10 +32,26 @@ class PseudoParticleBatch {
         void _check_init();
 
     protected:
-        // initialize is called by constructors of this class or its children to fill instances with sensible values from
-        // different sets of parameters
-        // may be replaced by children calling parent constructors
+        /**
+         * Fill the member variables and initialize the particles
+         *
+         * initialize() is called by constructors of this class or its children
+         * to fill instances with sensible values from different sets of
+         * parameters.
+         *
+         * @param N Number of pseudo particles
+         * @param callbacks Callbacks for the pseudo particles
+         * @param start Starting point of all pseudo particles
+         * @param options
+         */
         void initialize(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options);
+
+        /**
+         * @see initialize()
+         * @param callbacks Callbacks for the pseudo particles
+         * @param starts Vector of starting points for the pseudo particles. For every given element, one pseudo particle is created
+         * @param options
+         */
         void initialize(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
 
     public:
@@ -52,16 +70,24 @@ class PseudoParticleBatch {
         //PseudoParticleBatch operator + (const PseudoParticleBatch&);
         const PseudoParticle& operator [] (int index);
 
-        // advances all unfinished particles for the given count of steps
-        //
-        // returns the number of finished particles
+        /**
+         * advances all unfinished particles for the given count of steps
+         *
+         * @param steps how many steps to advance all particles
+         * @returns the number of finished particles
+         */
         int step_all(int steps = 1);
 
-        // runs the given amount of particles, if -1 is given,
-        // all particles will be simulated
-        //
-        // returns the number of finished particles
+        /**
+         * runs the given amount of particles, if -1 is given,
+         * all particles will be simulated 
+         *
+         * @param particle_count the number of particles to run
+         * @return the number of finished particles
+         */
         int run(int particle_count = -1);
+        //int run_some(int particle_count = -1);
+        //void run_mod(int mod_base, int mod_res);
 
         bool finished();
         int finished_count();
@@ -74,11 +100,19 @@ class PseudoParticleBatch {
         const PseudoParticleState& state(int index);
         const PseudoParticle& particle(int index);
 
-        // integrate all finished particles with the given integrator
-        // returns a vector of the integration results
+        /**
+         * integrate all finished particles with the given integrator
+         *
+         * @param integrator Use this integrator to integrate over all trajectories
+         * @return Integration results for every particle
+         */
         std::vector<double> apply_integrator(TrajectoryIntegrator& integrator);
 
-        // returns the value of all live integrators
+        /**
+         * returns the value of all live integrators
+         *
+         * @return std::vector containing N std::vector, each containing M double values. N is the number of pseudo particles, M is the number if live integrators attached.
+         */
         std::vector<std::vector<double>> get_integrator_values();
 };
 
