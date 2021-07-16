@@ -5,9 +5,9 @@ from pybatch.breakpointstate cimport BreakpointState
 from pybatch.pybreakpointstate import PyBreakpointState
 
 cdef object py_breakpointstate(BreakpointState bp):
+    #print(bp)
     return PyBreakpointState(<int> bp)
 
-# not implemented, not sure how to do it effectively
 cdef BreakpointState c_breakpointstate(bp):
     if bp == PyBreakpointState.UNDEFINED:
         return BreakpointState.UNDEFINED

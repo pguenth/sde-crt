@@ -13,16 +13,17 @@ SpaceTimePoint::operator std::string() const {
 
 //PseudoParticleState::PseudoParticleState(const PseudoParticle& particle) : _particle(particle) { }
 
-PseudoParticleState::PseudoParticleState() : _finished(false), _tracked(true) {}
+
+PseudoParticleState::PseudoParticleState() : _finished(false), _tracked(true), _breakpoint_state(BreakpointState::UNDEFINED) {}
 
 PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, const SpaceTimePoint& p0, int max_steps, bool tracked) :
-        _particle(particle), _finished(false), _tracked(tracked) {
+        _particle(particle), _finished(false), _tracked(tracked), _breakpoint_state(BreakpointState::UNDEFINED)  {
     _trajectory.push_back(p0); // push directly into the trajectory to guarantee non-empty vector
     _pre_allocate(max_steps);
 }
 
 PseudoParticleState::PseudoParticleState(const PseudoParticle *particle, double t0, const Eigen::VectorXd& x0, int max_steps, bool tracked) :
-        _particle(particle), _finished(false), _tracked(tracked) {
+        _particle(particle), _finished(false), _tracked(tracked), _breakpoint_state(BreakpointState::UNDEFINED)  {
 
     // push directly into the trajectory to guarantee non-empty vector
     SpaceTimePoint s(t0, x0);
@@ -77,10 +78,13 @@ BreakpointState PseudoParticleState::get_breakpoint_state() const {
 }
 
 // operators
-PseudoParticleState::operator std::string() {
+PseudoParticleState::operator std::string() const{
     std::ostringstream s;
-    s << (std::string)_trajectory.back() << "; Finished: " << _finished << "; BreakpointState: " << (int)_breakpoint_state;
-    return s.str();
+    s << (std::string)(_trajectory.back()) << "; Finished: " << finished() << "; BreakpointState: " << (int)_breakpoint_state;
+
+    std::string str = s.str();
+    str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
+    return str;
 }
 
 const SpaceTimePoint& PseudoParticleState::operator ()() const{

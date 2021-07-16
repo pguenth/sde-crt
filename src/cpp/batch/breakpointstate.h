@@ -2,8 +2,8 @@
 #define BREAKPOINTSTATE_H
 
 enum class BreakpointState : int {
-    UNDEFINED = -1,
-    NONE = 0,
+    UNDEFINED = 0,
+    NONE = 1,
     UPPER,
     LOWER,
     TIME

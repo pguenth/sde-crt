@@ -4,6 +4,7 @@
 #include <Eigen/Core>
 #include <vector>
 #include <iostream>
+#include <algorithm>
 #include "breakpointstate.h"
 #include <sstream>
 
@@ -55,7 +56,7 @@ class PseudoParticleState {
         BreakpointState get_breakpoint_state() const;
 
         // operators
-        operator std::string(); //string repr.
+        operator std::string() const; //string repr.
         const SpaceTimePoint& operator ()() const; //returns current space-time point
 
         void update(const SpaceTimePoint& p);
