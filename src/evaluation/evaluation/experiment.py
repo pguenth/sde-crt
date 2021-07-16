@@ -129,8 +129,16 @@ class ExperimentSet:
             self.experiments[name] = Experiment(batch_cls, ps, **kwargs)
 
     def __del__(self):
-        for ex in self.experiments:
+        for ex in self.experiments.values():
             del ex
+
+    @property
+    def finished(self):
+        for ex in self.experiments.values():
+            if not ex.finished:
+                return False
+
+        return True
 
     def plot(self, ax, extractors, **kwargs):
         """
@@ -151,19 +159,19 @@ class ExperimentSet:
         :returns: `self`
         """
 
-        logging.info("Forking child processes")
-        processes = []
+        #logging.info("Forking child processes")
+        logging.info("Running experiments")
+        #processes = []
         for ex in self.experiments.values():
-            p = Process(target=ex.run)
-            p.start()
-            processes.append(p)
+            ex.run()
+            #p = Process(target=ex.run)
+            #p.start()
+            #processes.append(p)
         
-        logging.info("Waiting for child processes to complete")
-        while len(processes) > 0:
-            for p in processes:
-                p.join(1)
-                if not p.exitcode is None:
-                    processes.remove(p)
-        logging.info("All child processes joined")
+        logging.info("Experiments finished")
+        #logging.info("Waiting for child processes to complete")
+        #for p in processes:
+            #p.join()
+        #logging.info("All child processes joined")
 
         return self
