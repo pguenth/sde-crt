@@ -147,6 +147,7 @@ def pickle_cache(cache_path, generator, clear=False):
             with open(cache_path, mode='wb') as cachefile:
                 logging.info("Storing generated data in {}".format(cache_path))
                 pickle.dump(content, cachefile)
+                logging.info("Generated data is stored")
         except IOError:
             logging.error("Could not store cache")
         except TypeError:

@@ -24,19 +24,19 @@ double integrator_cb(const Eigen::VectorXd& x){
     return 0.01 * x(0);
 }
 
-BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, double x_max){
+BatchSourcetest::BatchSourcetest(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
     _process = new WienerProcess(1, &seed);
 
     // time limit breakpoint
-    _tlimit = new BreakpointTimelimit(Tmax);
+    _tlimit = new BreakpointTimelimit(params["Tmax"]);
 
     // spatial breakpoint
     Eigen::VectorXd xmin(1), xmax(1);
-    xmin << x_min;
-    xmax << x_max;
+    xmin << params["x_min"];
+    xmax << params["x_max"];
     _slimit = new BreakpointSpatial(xmin, xmax);
 
     // integrator
@@ -49,7 +49,7 @@ BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, do
 
     // starting point
     Eigen::VectorXd start_x(1);
-    start_x << x0;
+    start_x << params["x0"];
     SpaceTimePoint start{0, start_x};
 
 
@@ -58,14 +58,13 @@ BatchSourcetest::BatchSourcetest(double x0, int N, double Tmax, double x_min, do
     opt.breakpoints.push_back(_tlimit);
     opt.breakpoints.push_back(_slimit);
     
-    std::cout << "Test6\n";
     opt.add_integrator(liveintegrator);
-    std::cout << "Test7\n";
     opt.process = _process;
+    opt.tracked = false;
     opt.timestep = 0.005;
 
     // initialize
-    initialize(N, callbacks, start, opt);
+    initialize(params["N"], callbacks, start, opt);
 }
 
 BatchSourcetest::~BatchSourcetest(){

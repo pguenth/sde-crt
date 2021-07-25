@@ -14,6 +14,7 @@ inline double duration_ms(duration d) { return std::chrono::duration<double, std
 int main(){
     std::cout << "Test\n";
 
+    /*
     time_point start_time = now();
     BatchSourcetest batch{0, 10000, 1, -1, 1};
     batch.run();
@@ -23,6 +24,7 @@ int main(){
     for (auto &s : results){
     //    std::cout << (std::string)s << '\n';
     }
+    */
 
     return 0;
 }

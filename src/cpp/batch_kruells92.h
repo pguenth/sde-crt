@@ -82,4 +82,26 @@ class BatchKruells924 : public PseudoParticleBatch {
                 BatchKruells924(std::map<std::string, double> params);
                 ~BatchKruells924();
 };
+
+
+/**
+ * Same as BatchKruells923 but with kappa_bar (resp. Kparallel in 92 paper)
+ * dependent on x or beta respectively
+ */
+class BatchKruells925 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double y0, double r_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s
+                 */
+                BatchKruells925(std::map<std::string, double> params);
+                ~BatchKruells925();
+};
 #endif

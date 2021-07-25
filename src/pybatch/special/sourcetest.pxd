@@ -3,6 +3,8 @@
 from pybatch.pseudoparticlestate cimport PseudoParticleState
 from pybatch.batch cimport PseudoParticleBatch
 from libcpp.vector cimport vector
+from libcpp.map cimport map
+from libcpp.string cimport string
 
 cdef extern from "batch_sourcetest.cpp":
     pass
@@ -10,6 +12,6 @@ cdef extern from "batch_sourcetest.cpp":
 cdef extern from "batch_sourcetest.h":
     cdef cppclass BatchSourcetest(PseudoParticleBatch):
         # child methods
-        BatchSourcetest(double x0, int N, double Tmax, double x_min, double x_max) except +
+        BatchSourcetest(map[string, double] params) except +
         vector[double] integrate()
 

@@ -29,3 +29,8 @@ cdef extern from "batch_kruells92.h":
         # child methods
         BatchKruells924(map[string, double] params) except +
         #vector[double] integrate()
+
+    cdef cppclass BatchKruells925(PseudoParticleBatch):
+        # child methods
+        BatchKruells925(map[string, double] params) except +
+        #vector[double] integrate()

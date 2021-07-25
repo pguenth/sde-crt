@@ -18,7 +18,7 @@ class BatchSourcetest : public PseudoParticleBatch {
 
 
         public:
-                BatchSourcetest(double x0, int N, double Tmax, double x_min, double x_max);
+                BatchSourcetest(std::map<std::string, double> params);
                 ~BatchSourcetest();
                 std::vector<double> integrate();
 };

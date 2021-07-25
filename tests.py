@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, 'lib')
 sys.path.insert(0, 'src/evaluation')
 from pybatch.special.kruells92 import *
+from pybatch.special.sourcetest import *
 from pybatch.pybreakpointstate import *
 
 from evaluation.experiment import *
@@ -43,6 +44,33 @@ store_opts = {
     'dir' : 'out',
     'format' : 'pdf'
 }
+
+""" *********** """
+""" Source Test """
+
+@cached(**cache_opts)
+def ex_sourcetest():
+    param = { 'Tmax' : 1,
+              'x_min' : -1,
+              'x_max' : 1,
+              'x0' : 0,
+              'N' : 500000
+            }
+
+    #times = np.array([64, 200, 640, 1000]) / 100
+
+    #exset = ExperimentSet(PyBatchKruells921, generate_timerange(param, times))
+    exset = Experiment(PyBatchSourcetest, param)
+    return exset.run()
+
+test_sourcetest = ExporterHist(
+        ex_sourcetest,
+        store_opts,
+        log_x=False,
+        log_y=False,
+        use_integrator=0,
+        bin_count=200
+    )
 
 
 """ *********** """
@@ -131,12 +159,15 @@ test_kruells923a = ExporterDoubleHist(
         ylabels=("Particle count", "Particle count")
 )
 
+
+
+
 """ *********** """
 """ Kruells 923b """
 """ Reproduce 1994/Fig. 2 and 3
     using continous pseudo particle injection
 
-    b: wider timerange
+    b: wider timerange, powerlaws
 """
 
 @cached(**cache_opts)
@@ -159,14 +190,18 @@ def ex_kruells923b():
 
     return exset
 
-test_kruells923b = ExporterDoubleHist(
+test_kruells923b = ExporterDoubleHistPL(
         ex_kruells923b,
         store_opts,
         log_y=(True, True),
-        bin_count=100,
+        #average_bin_size=200,
+        bin_count=50,
         subtitles=("Spatial", "Momentum"),
         xlabels=("x", "ln(p/p_inj)"),
-        ylabels=("Particle count", "Particle count")
+        ylabels=("Particle count", "Particle count"),
+        ln_x=True,
+        powerlaw_annotate=True,
+        xlim=((-50, 300), (None, None))
 )
 
 
@@ -181,10 +216,10 @@ def ex_kruells924():
               'Vs' : 1,
               'r' : 4,
               'dt' : 0.1,
-              'r_inj' : 0.1,
+              'r_inj' : 10,
               'beta_s' : 0,#.0001,
               'dx_inj' : 1,
-              'N' : 500,
+              'N' : 5000,
               'x0' : 0,
               'p0' : 0
             }
@@ -196,10 +231,63 @@ def ex_kruells924():
 
     return exset
 
-test_kruells924 = ExporterDoubleHist(ex_kruells924, store_opts, log_x=(False, False), log_y=(False, False))
+test_kruells924 = ExporterDoubleHist(
+        ex_kruells924,
+        store_opts,
+        log_x=(False, False),
+        log_y=(True, True),
+        use_integrator=0
+    )
 
+
+""" *********** """
+""" Kruells 925 """
+""" Reproduce 1994/Fig. 2 and 3
+    using continous pseudo particle injection
+    (like kruells 923)
+    but with a spatially variable diffusion coefficient
+
+"""
+
+@cached(**cache_opts)
+def ex_kruells925():
+    param = { 'dxs' : 0.25,
+              'Kpar' : 5,
+              'Vs' : 1,
+              'r' : 4,
+              'dt' : 0.1,
+              'r_inj' : 0.003,
+              'beta_s' : 0,#.0001,
+              'x0' : 0,
+              'p0' : 0,
+              'q' : 1
+            }
+
+    times = np.array([20, 64, 200])
+
+    exset = ExperimentSet(PyBatchKruells925, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells925 = ExporterDoubleHistPL(
+        ex_kruells925,
+        store_opts,
+        log_y=(True, True),
+        #average_bin_size=200,
+        bin_count=50,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        ln_x=True,
+        powerlaw_annotate=True,
+        xlim=((-50, 300), (None, None))
+)
 
 """ ***************** """
 """ Run experiment(s) """
 if __name__ == '__main__':
+    #test_kruells924()
+    #test_sourcetest()
+    #test_kruells925()
     test_kruells923b()

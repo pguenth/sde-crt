@@ -2,10 +2,11 @@
 
 from pybatch.batch cimport PseudoParticleBatch
 from pybatch.pybatch cimport PyPseudoParticleBatch
+from pybatch.pybatch cimport dict_to_map_string_double
 
 cdef class PyBatchSourcetest(PyPseudoParticleBatch):
-    def __cinit__(self, double x0, int N, double Tmax, double x_min, double x_max):
-        self._batch = <PseudoParticleBatch *>(new BatchSourcetest(x0, N, Tmax, x_min, x_max))
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchSourcetest(dict_to_map_string_double(params)))
 
     @staticmethod
     cdef BatchSourcetest *_cast_(PseudoParticleBatch *_ptr):

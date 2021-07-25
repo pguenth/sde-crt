@@ -14,6 +14,14 @@ inline double kruells92_dVdx(double x, double dxs, double b){
 
 }
 
+inline double kruells94_kappa_dep(double x, double dxs, double a, double b, double q){
+    return q * pow(kruells92_V(x, dxs, a, b), 2);
+}
+
+inline double kruells94_dkappadx_dep(double x, double dxs, double a, double b, double q){
+    return 2 * q * kruells92_V(x, dxs, a, b) * kruells92_dVdx(x, dxs, b);
+}
+
 Eigen::VectorXd kruells921_drift(const Eigen::VectorXd& x, double T){
     Eigen::VectorXd v(2);
     v(0) = -x(0) / T;
@@ -250,6 +258,76 @@ BatchKruells924::BatchKruells924(std::map<std::string, double> params){
 }
 
 BatchKruells924::~BatchKruells924(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+
+Eigen::VectorXd kruells925_drift(const Eigen::VectorXd& x, double dxs, double a, double b, double beta_s, double q){
+    Eigen::VectorXd v(2);
+    v(0) = kruells94_dkappadx_dep(x(0), dxs, a, b, q) + kruells92_V(x(0), dxs, a, b);
+    v(1) = - kruells92_dVdx(x(0), dxs, b) / 3 - beta_s * sqrt(1 + exp(2 * x(1)));
+    return v;
+}
+
+Eigen::MatrixXd kruells925_diffusion(const Eigen::VectorXd& x, double dxs, double a, double b, double q){
+    Eigen::MatrixXd v(2, 2);
+    v(0, 0) = sqrt(2 * kruells94_kappa_dep(x(0), dxs, a, b, q));
+    v(0, 1) = 0;
+    v(1, 0) = 0;
+    v(1, 1) = 0;
+    return v;
+}
+
+BatchKruells925::BatchKruells925(std::map<std::string, double> params){
+    // get a random generator
+    std::random_device rdseed;
+    pcg32::state_type seed = rdseed();
+    _process = new WienerProcess(2, &seed);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(params["Tmax"]);
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+
+    double a = params["Vs"] / 2 * (1 + 1/params["r"]);
+    double b = a * (params["r"] - 1) / (params["r"] + 1);
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells925_drift, _1, params["dxs"], a, b, params["beta_s"], params["q"]);
+    auto call_diffusion = std::bind(kruells925_diffusion, _1, params["dxs"], a, b, params["q"]);
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << params["x0"], params["p0"];
+    for (double t = 0; t <= params["Tmax"]; t += params["r_inj"]){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = params["dt"];
+    opt.tracked = false;
+
+    // initialize
+    initialize(callbacks, starts, opt);
+}
+
+BatchKruells925::~BatchKruells925(){
     delete _process;
     delete _tlimit;
     //delete _slimit;
