@@ -6,6 +6,7 @@ import os
 sys.path.insert(0, os.path.abspath('../lib'))
 import pybatch
 from pybatch.pybreakpointstate import *
+from evaluation import helpers
 
 class Extractor(ABC):
     """
@@ -30,6 +31,7 @@ class Extractor(ABC):
         
         :param experiment: The experiment to extract data from
         :type experiment: :py:class:`evaluation.experiment.Experiment`
+        :returns: Data
         """
 
         raise NotImplementedError()
@@ -42,6 +44,7 @@ class Extractor(ABC):
         :param experiment: The experiment to extract and plot data from
         :type experiment: :py:class:`evaluation.experiment.Experiment`
         :param matplotlib.axes.Axes ax: The axes to plot on
+        :returns: The data used to plot
         """
 
         raise NotImplementedError()
@@ -72,6 +75,7 @@ class TrajectoryExtractor(Extractor):
     def plot(self, experiment, ax):
         t, x = self.data(experiment)
         ax.plot(t, x)
+        return t, x
         
 class MultiTrajectoryExtractor(Extractor):
     """
@@ -106,6 +110,8 @@ class MultiTrajectoryExtractor(Extractor):
         trajectories = self.data(experiment)
         for t, x in trajectories:
             ax.plot(t, x)
+
+        return trajectories
 
 class HistogramExtractor(Extractor):
     """
@@ -169,6 +175,9 @@ class HistogramExtractor(Extractor):
         param, histogram = self.data(experiment)
         ax.plot(param, histogram, label=experiment.name, **kwargs)
 
+
+        return param, histogram
+
 class HistogramExtractorFinish(HistogramExtractor):
     """
     Create a histogram of all pseudo particles that reached a time limit
@@ -207,3 +216,46 @@ class HistogramExtractorSpatialBoundary(HistogramExtractor):
 
     def _relevant_end_values(self, experiment):
         return [p.t for p in experiment.states if p.breakpoint_state == self.options['end_state']]
+
+class PowerlawExtractor(Extractor):
+    """
+    Fit a powerlaw
+
+    :param data_extractor: Extractor from which the data is pulled
+    :type data_extractor: :py:class:`evaluation.extractors.Extractor` returning some kind of 2-d data
+    """
+    def __init__(self, data_extractor, **kwargs):
+        self.options = {
+                'guess' : [1, -1],
+                'label' : "Power law",
+                'ln_x' : False,
+                'powerlaw_annotate' : False
+        }
+        self.options.update(kwargs)
+
+        self.data_extractor = data_extractor
+
+    def data(self, experiment):
+        x, y = self.data_extractor.data(experiment)
+
+        if self.options['ln_x']:
+            x = np.exp(x)
+    
+        a, q = helpers.fit_powerlaw(x, y, guess=self.options['guess'])
+        
+        return a, q
+
+    def plot(self, experiment, ax):
+        a, q = self.data(experiment)
+
+        if self.options['ln_x']:
+            func = lambda x : a * np.exp(x*q)
+        else:
+            func = lambda x : a * x**q
+
+        label = self.options['label']
+        if self.options['powerlaw_annotate']:
+            label += ' q={:.2e}'.format(q)
+
+        helpers.add_curve_to_plot(ax, func, label=label)
+        return a, q
