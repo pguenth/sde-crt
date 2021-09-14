@@ -21,8 +21,7 @@ extensions = [
 ]
 
 special = [
-        Extension("pybatch.special.kruells92", [cython_path + "special/kruells92.pyx"], **kwargs_ext),
-        Extension("pybatch.special.kruells1", [cython_path + "special/kruells1.pyx"], **kwargs_ext),
+        Extension("pybatch.special.kruells", [cython_path + "special/kruells.pyx"], **kwargs_ext),
         Extension("pybatch.special.sourcetest", [cython_path + "special/sourcetest.pyx"], **kwargs_ext)
 ]
 

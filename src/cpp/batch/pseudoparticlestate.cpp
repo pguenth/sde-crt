@@ -51,6 +51,24 @@ const SpaceTimePoint& PseudoParticleState::get_p() const {
         throw std::logic_error("Accessed an uninitialized state");
     }
 
+/*
+    SpaceTimePoint bck = _trajectory.back();
+    //std::cout << (std::string)bck << "\n";
+    if (!std::isfinite(bck.x(0))) {
+        std::cout << "infinite 0 " << bck.x(0) << "\n";
+    }
+    if (!std::isfinite(bck.x(1))) {
+        std::cout << "infinite 1 " << bck.x(1) << "\n";
+    }
+    if (bck.x(0) == HUGE_VAL) {
+        std::cout << "huge_val 0 " << bck.x(0) << "\n";
+    }
+    if (bck.x(1) == HUGE_VAL) {
+        std::cout << "huge_val 1 " << bck.x(1) << "\n";
+    }
+
+    */
+
     return _trajectory.back();
 }
 

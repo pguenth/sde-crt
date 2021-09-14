@@ -32,7 +32,10 @@ class Experiment:
         self._integrator_values = None
 
     def __del__(self):
-        del self.batch
+        try:
+            del self.batch
+        except AttributeError:
+            pass
 
     @property
     def finished(self):

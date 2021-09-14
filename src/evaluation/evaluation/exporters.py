@@ -203,6 +203,9 @@ class ExporterDoubleHist(ExporterDoublePlot):
         ex.plot(axs[0], self.extractor_x)
         ex.plot(axs[1], self.extractor_p)
 
+        for ax in axs:
+            ax.legend()
+
         return fig, axs
 
 class ExporterDoubleHistPL(ExporterDoubleHist):
@@ -219,6 +222,7 @@ class ExporterDoubleHistPL(ExporterDoubleHist):
     def _plot(self, ex):
         fig, axs = super()._plot(ex)
 
+        self.options['ln_x'] = not self.options['log_x'][1]
         self.extractor_pl = PowerlawExtractor(self.extractor_p, **self.options)
         ex.plot(axs[1], self.extractor_pl)
 

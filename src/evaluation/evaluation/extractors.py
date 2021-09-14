@@ -128,13 +128,18 @@ class HistogramExtractor(Extractor):
             Normalize the total histogram area. (default: False)
         * *use_integrator* 
             Use the given integrator (by index). (default: None)
+        * *transform*
+            Callable for applying transformations to the histogram. (default: None).
+            Can be a list of callables, in this case the item with index *index* is used.
+            The callable recieves an array of x values and an array of y values, in this order.
     """
     def __init__(self, index, **kwargs):
         self.options = {
             'bin_count' : None,
             'average_bin_size' : 100,
             'auto_normalize' : False,
-            'use_integrator' : None
+            'use_integrator' : None,
+            'transform' : None
         }
         self.options.update(kwargs)
         super().__init__(**self.options)
@@ -166,8 +171,22 @@ class HistogramExtractor(Extractor):
         weights = self._relevant_weights(experiment)
         bin_count = type(self)._get_bin_count(self.options, len(rev))
 
-        histogram, edges = np.histogram(np.array(rev).T[0], bin_count, weights=weights, density=self.options['auto_normalize'])
+        try:
+            histogram, edges = np.histogram(np.array(rev).T[0], bin_count, weights=weights, density=self.options['auto_normalize'])
+        except ValueError as e:
+            arr = np.array(rev).T[0]
+            print("verr", len(weights), len(arr), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), np.array(rev).T[0])
+            raise e
+            
         param = edges[:-1] + (edges[1:] - edges[:-1]) / 2
+
+        try:
+            histogram = self.options['transform'](param, histogram)
+        except TypeError:
+            try:
+                histogram = self.options['transform'][self.index](param, histogram)
+            except TypeError:
+                pass
 
         return param, histogram
 

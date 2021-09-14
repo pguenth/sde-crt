@@ -1,4 +1,84 @@
-#include "batch_kruells92.h"
+#include "batch_kruells.h"
+
+inline double kruells1_kappa(double x, double y){
+    return 1;
+}
+
+inline double kruells1_dkappa_dx(double x, double y){
+    return 0;
+}
+
+inline double kruells1_beta(double x, double Xsh, double a, double b){
+    return a - b * tanh(x / Xsh);
+
+}
+
+inline double kruells1_dbeta_dx(double x, double Xsh, double b){
+    return -b / (Xsh * pow(cosh(x / Xsh), 2));
+
+}
+
+
+Eigen::VectorXd kruells1_drift(const Eigen::VectorXd& x, double Xsh, double a, double b){
+    Eigen::VectorXd v(2);
+    v(0) = kruells1_dkappa_dx(x(0), x(1)) + kruells1_beta(x(0), Xsh, a, b);
+    v(1) = -(x(1)) * kruells1_dbeta_dx(x(0), Xsh, b) / 3.0;
+    return v;
+}
+
+Eigen::MatrixXd kruells1_diffusion(const Eigen::VectorXd& x, double Xsh, double a, double b){
+    Eigen::MatrixXd v(2, 2);
+    v(0, 0) = sqrt(2 * kruells1_kappa(x(0), x(1)));
+    v(0, 1) = 0;
+    v(1, 0) = 0;
+    v(1, 1) = 0;
+    return v;
+}
+
+BatchKruells0::BatchKruells0(double x0, double y0, int N, double Tmax, double L, double Xsh, double a, double b){
+    // get a random generator
+    std::random_device rdseed;
+    pcg32::state_type seed = rdseed();
+    _process = new WienerProcess(2, &seed);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(Tmax);
+
+    // spatial breakpoint
+    Eigen::VectorXd xmin(2), xmax(2);
+    xmin << -L, 0;
+    xmax << L, 1000;
+    _slimit = new BreakpointSpatial(xmin, xmax);
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells1_drift, _1, Xsh, a, b);
+    auto call_diffusion = std::bind(kruells1_diffusion, _1, Xsh, a, b);
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting point
+    Eigen::VectorXd start_x(2);
+    start_x << x0, y0;
+    SpaceTimePoint start{0, start_x};
+
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = 0.001;
+
+    // initialize
+    initialize(N, callbacks, start, opt);
+}
+
+BatchKruells0::~BatchKruells0(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
 
 // Vs = V(x)|x<0
 // r compression ratio
@@ -38,7 +118,7 @@ Eigen::MatrixXd kruells921_diffusion(const Eigen::VectorXd& x, double T){
     return v;
 }
 
-BatchKruells921::BatchKruells921(std::map<std::string, double> params){
+BatchKruells1::BatchKruells1(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -77,7 +157,7 @@ BatchKruells921::BatchKruells921(std::map<std::string, double> params){
     initialize(params["N"], callbacks, start, opt);
 }
 
-BatchKruells921::~BatchKruells921(){
+BatchKruells1::~BatchKruells1(){
     delete _process;
     delete _tlimit;
     //delete _slimit;
@@ -100,7 +180,7 @@ Eigen::MatrixXd kruells922_diffusion(const Eigen::VectorXd& x, double Kpar){
     return v;
 }
 
-BatchKruells922::BatchKruells922(std::map<std::string, double> params){
+BatchKruells2::BatchKruells2(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -144,14 +224,34 @@ BatchKruells922::BatchKruells922(std::map<std::string, double> params){
     initialize(params["N"], callbacks, start, opt);
 }
 
-BatchKruells922::~BatchKruells922(){
+BatchKruells2::~BatchKruells2(){
     delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
 }
 
-BatchKruells923::BatchKruells923(std::map<std::string, double> params){
+// ******************************************   KRUELLS 3 ****************************************** //
+
+// dxs is also called X_sh
+Eigen::VectorXd kruells3_drift(const Eigen::VectorXd& x, double dxs, double a, double b, double beta_syn){
+    Eigen::VectorXd v(2);
+    v(0) = kruells92_V(x(0), dxs, a, b);
+    v(1) = - kruells92_dVdx(x(0), dxs, b) / 3 - beta_syn * sqrt(1 + exp(2 * x(1)));
+    return v;
+}
+
+// Kpar is also called kappa
+Eigen::MatrixXd kruells3_diffusion(const Eigen::VectorXd& x, double Kpar){
+    Eigen::MatrixXd v(2, 2);
+    v(0, 0) = sqrt(2 * Kpar);
+    v(0, 1) = 0;
+    v(1, 0) = 0;
+    v(1, 1) = 0;
+    return v;
+}
+
+BatchKruells3::BatchKruells3(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -173,15 +273,15 @@ BatchKruells923::BatchKruells923(std::map<std::string, double> params){
 
     // callbacks
     // not sure if &function is better
-    auto call_drift = std::bind(kruells922_drift, _1, params["dxs"], a, b, params["beta_s"]);
-    auto call_diffusion = std::bind(kruells922_diffusion, _1, params["Kpar"]);
+    auto call_drift = std::bind(kruells3_drift, _1, params["dxs"], a, b, params["beta_syn"]);
+    auto call_diffusion = std::bind(kruells3_diffusion, _1, params["Kpar"]);
     PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
 
     // starting points
     std::vector<SpaceTimePoint> starts;
     Eigen::VectorXd start_x(2);
     start_x << params["x0"], params["p0"];
-    for (double t = 0; t <= params["Tmax"]; t += params["r_inj"]){
+    for (double t = 0; t <= params["Tmax"]; t += params["t_inj"]){
         starts.push_back(SpaceTimePoint(t, start_x));
     }
 
@@ -197,19 +297,23 @@ BatchKruells923::BatchKruells923(std::map<std::string, double> params){
     initialize(callbacks, starts, opt);
 }
 
-BatchKruells923::~BatchKruells923(){
+BatchKruells3::~BatchKruells3(){
     delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
 }
 
-double kruells924_injection_region(const Eigen::VectorXd& s, double r_inj, double dx_inj){
-    if (s(0) < r_inj && s(0) > -r_inj) return dx_inj;
+
+// ******************************************   KRUELLS 4 ****************************************** //
+
+
+double kruells924_injection_region(const Eigen::VectorXd& s, double a_inj, double r_inj){
+    if (s(0) < a_inj && s(0) > -a_inj) return r_inj;
     else return 0;
 }
 
-BatchKruells924::BatchKruells924(std::map<std::string, double> params){
+BatchKruells4::BatchKruells4(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -231,12 +335,12 @@ BatchKruells924::BatchKruells924(std::map<std::string, double> params){
 
     // callbacks
     // not sure if &function is better
-    auto call_drift = std::bind(kruells922_drift, _1, params["dxs"], a, b, params["beta_s"]);
-    auto call_diffusion = std::bind(kruells922_diffusion, _1, params["Kpar"]);
+    auto call_drift = std::bind(kruells3_drift, _1, params["dxs"], a, b, params["beta_syn"]);
+    auto call_diffusion = std::bind(kruells3_diffusion, _1, params["Kpar"]);
     PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
 
     // integrator
-    auto call_integrate = std::bind(kruells924_injection_region, _1, params["r_inj"], params["dx_inj"]);
+    auto call_integrate = std::bind(kruells924_injection_region, _1, params["a_inj"], params["r_inj"]);
     LinearLiveIntegrator lin_int{call_integrate};
 
     // starting points
@@ -257,12 +361,15 @@ BatchKruells924::BatchKruells924(std::map<std::string, double> params){
     initialize(params["N"], callbacks, start, opt);
 }
 
-BatchKruells924::~BatchKruells924(){
+BatchKruells4::~BatchKruells4(){
     delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
 }
+
+
+// ******************************************   KRUELLS 5 ****************************************** //
 
 
 Eigen::VectorXd kruells925_drift(const Eigen::VectorXd& x, double dxs, double a, double b, double beta_s, double q){
@@ -281,7 +388,7 @@ Eigen::MatrixXd kruells925_diffusion(const Eigen::VectorXd& x, double dxs, doubl
     return v;
 }
 
-BatchKruells925::BatchKruells925(std::map<std::string, double> params){
+BatchKruells5::BatchKruells5(std::map<std::string, double> params){
     // get a random generator
     std::random_device rdseed;
     pcg32::state_type seed = rdseed();
@@ -327,7 +434,7 @@ BatchKruells925::BatchKruells925(std::map<std::string, double> params){
     initialize(callbacks, starts, opt);
 }
 
-BatchKruells925::~BatchKruells925(){
+BatchKruells5::~BatchKruells5(){
     delete _process;
     delete _tlimit;
     //delete _slimit;

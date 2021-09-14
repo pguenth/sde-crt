@@ -1,0 +1,120 @@
+#ifndef BATCH_KRUELLS_H
+#define BATCH_KRUELLS_H
+
+#include <Eigen/Core>
+#include <vector>
+#include <iostream>
+#include <functional>
+#include "batch/wienerprocess.h"
+#include "batch/breakpoint.h"
+#include "batch/integrator.h"
+#include "batch/pseudoparticlebatch.h"
+
+using namespace std::placeholders;
+
+class BatchKruells0 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                BatchKruells0(double x0, double y0, int N, double Tmax, double L, double Xsh, double a, double b);//, double x_min, double x_max);
+                ~BatchKruells0();
+};
+
+class BatchKruells1 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                WienerProcess *_process;
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double y0, int N, double Tmax, double Tesc
+                 */
+                BatchKruells1(std::map<std::string, double> params);//, double x_min, double x_max);
+                ~BatchKruells1();
+};
+
+/**
+ * Reproducing Fig. 2 of the 92 paper
+ */
+class BatchKruells2 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                WienerProcess *_process;
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double y0, int N, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s
+                 */
+                BatchKruells2(std::map<std::string, double> params);
+                ~BatchKruells2();
+};
+
+/**
+ * Same as BatchKruells2 but with continous injection of PSEUDOparticles
+ */
+class BatchKruells3 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double y0, double t_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_s
+                 */
+                BatchKruells3(std::map<std::string, double> params);
+                ~BatchKruells3();
+};
+
+/**
+ * Same as BatchKruells2 but with continous injection of particles using an amplitude and an injection region
+ */
+class BatchKruells4 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                WienerProcess *_process;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double p0, int N, double r_inj, double a_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_syn
+                 */
+                BatchKruells4(std::map<std::string, double> params);
+                ~BatchKruells4();
+};
+
+
+/**
+ * Same as BatchKruells3 but with kappa_bar (resp. Kparallel in 92 paper)
+ * dependent on x or beta respectively
+ */
+class BatchKruells5 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 * double x0, double y0, double r_inj, double Tmax, double dxs, double Kpar, double r, double Vs, double dt, double beta_syn
+                 */
+                BatchKruells5(std::map<std::string, double> params);
+                ~BatchKruells5();
+};
+
+
+#endif
