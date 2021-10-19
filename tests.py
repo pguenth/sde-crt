@@ -554,6 +554,116 @@ test_kruells7b = ExporterDoubleHistPL(
         xlim=((None, None), (None, None))
 )
 
+# this one is for the talk at FRANCI 21
+@cached(**cache_opts)
+def ex_kruells7c():
+    param = { 'Xsh' : 0.25,
+              'kappa' : 5,
+              'beta_s' : 1,
+              'r' : 4,
+              'dt' : 0.1,
+              't_inj' : 0.0003,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'u0' : 0,
+              'q' : 1
+            }
+
+    times = np.array([6.4, 20, 64, 200])
+
+    exset = ExperimentSet(PyBatchKruells7, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells7c = ExporterDoubleHistConfineP(
+        ex_kruells7c,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=5,
+        #average_bin_size=200,
+        bin_count=30,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, False),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (None, None))
+)
+
+
+# this one is for the talk at FRANCI 21 too
+@cached(**cache_opts)
+def ex_kruells7d():
+    param = { 'Xsh' : 0.25,
+              'kappa' : 5,
+              'beta_s' : 0.9,
+              'r' : 4,
+              'dt' : 0.1,
+              't_inj' : 0.0003,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'u0' : 0,
+              'q' : 1
+            }
+
+    times = np.array([2, 6.4, 20, 64, 200])
+
+    exset = ExperimentSet(PyBatchKruells7, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells7d = ExporterDoubleHistConfineP(
+        ex_kruells7d,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=1,
+        #average_bin_size=200,
+        bin_count=50,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, False),
+        xlim=((None, None), (None, None))
+)
+
+# this one is for the talk at FRANCI 21 too
+@cached(**cache_opts)
+def ex_kruells7e():
+    param = { 'Xsh' : 0.25,
+              'kappa' : 5,
+              'beta_s' : 0.9,
+              'r' : 4,
+              'dt' : 0.1,
+              't_inj' : 0.0001,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'u0' : 0,
+              'q' : 1
+            }
+
+    times = np.array([6.4, 20, 64, 200])
+
+    exset = ExperimentSet(PyBatchKruells7, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells7e = ExporterDoubleHistConfineP(
+        ex_kruells7e,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=1,
+        #average_bin_size=200,
+        bin_count=50,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, False),
+        xlim=((None, None), (None, None))
+)
+
 """ *********** """
 """ Kruells 8 """
 """ Reproduce 1994/Fig. 2 and 3
@@ -611,8 +721,11 @@ if __name__ == '__main__':
     #test_kruells2()
     #test_kruells2a()
     #test_kruells5()
-    test_kruells8()
-    test_kruells4()
+    #test_kruells8()
+    #test_kruells4()
+    test_kruells7c()
+    #test_kruells7d()
+    #test_kruells7e()
     #test_kruells7a()
     #test_kruells7b()
     #test_kruells6a()

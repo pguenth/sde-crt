@@ -155,7 +155,7 @@ class ExporterDoublePlot(Exporter):
             self.options['title'] = self.name
 
     def _plot(self, ex):
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
         for lx, ly, ax in zip(self.options['log_x'], self.options['log_y'], axs):
             if lx:
@@ -199,6 +199,45 @@ class ExporterDoubleHist(ExporterDoublePlot):
 
         self.extractor_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
         self.extractor_p = HistogramExtractorFinish(1, **self.options)
+
+        ex.plot(axs[0], self.extractor_x)
+        ex.plot(axs[1], self.extractor_p)
+
+        for ax in axs:
+            ax.legend()
+
+        return fig, axs
+
+class ExporterDoubleHistConfineP(ExporterDoublePlot):
+    """
+    Export histograms for two-dimensional problems in one figure
+    
+    :\*args: args of :py:class:`evaluation.exporters.ExporterDoublePlot`
+    :\*\*kwargs:
+        * kwargs of :py:class:`evaluation.exporters.ExporterDoublePlot`
+        * kwargs of :py:class:`evaluation.extractors.HistogramExtractorFinish`
+        * x_range_for_p : Confine PPs for the momentum plot to particles between (-x_range_for_p, x_range_for_p)
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.options = {
+                'x_range_for_p' : 5
+        }
+
+        self.options.update(kwargs)
+        super().__init__(*args, **self.options)
+
+    def _plot(self, ex):
+        fig, axs = super()._plot(ex)
+
+        xrfp = self.options['x_range_for_p']
+        p_confinements = [
+                (0, lambda x : (x > -xrfp and x < xrfp))
+                ]
+
+        self.extractor_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
+        self.extractor_p = HistogramExtractorFinish(1, **(self.options | {'confinements' : p_confinements}))
 
         ex.plot(axs[0], self.extractor_x)
         ex.plot(axs[1], self.extractor_p)

@@ -139,7 +139,7 @@ class HistogramExtractor(Extractor):
             'average_bin_size' : 100,
             'auto_normalize' : False,
             'use_integrator' : None,
-            'transform' : None
+            'transform' : None,
         }
         self.options.update(kwargs)
         super().__init__(**self.options)
@@ -154,13 +154,9 @@ class HistogramExtractor(Extractor):
             c = int(n_states / options['average_bin_size'])
             return c if c != 0 else 1
 
+    @abstractmethod
     def _relevant_weights(self, experiment):
-        if self.options['use_integrator'] is None:
-            weights = np.array([1] * len(experiment.states))
-        else:
-            weights = experiment.integrator_values[self.options['use_integrator']]
-        relevant_weights = [w for p, w in zip(experiment.states, weights) if p.breakpoint_state == self.options['end_state']]
-        return relevant_weights
+        raise NotImplementedError()
 
     @abstractmethod
     def _relevant_end_values(self, experiment):
@@ -203,17 +199,41 @@ class HistogramExtractorFinish(HistogramExtractor):
 
     :\*args: args of :py:class:`evaluation.extractors.HistogramExtractor`
     :\*\*kwargs: kwargs of :py:class:`evaluation.extractors.HistogramExtractor`
+        * *confinements*
+            List of confinements on coordinates other than index.
+            A Confinement is a tuple of (<confinement_index>, <confinement_condition>).
+            confinement_condition is a callable called with a value of confinement_index
+            and returning True if this pseudo particle should be included, False otherwise
 
     """
     def __init__(self, *args, **kwargs):
         self.options = {
             'end_state' : PyBreakpointState.TIME,
+            'confinements' : []
         }
         self.options.update(kwargs)
         super().__init__(*args, **self.options)
 
+    def _relevant_weights(self, experiment):
+        if self.options['use_integrator'] is None:
+            weights = np.array([1] * len(experiment.states))
+        else:
+            weights = experiment.integrator_values[self.options['use_integrator']]
+
+        relevant_states_weights = zip(experiment.states, weights)
+        for conf_idx, conf_cond in self.options['confinements']:
+            relevant_states_weights = [(p, w) for p, w in zip(experiment.states, weights) if conf_cond(p.x[conf_idx])]
+
+        relevant_weights = [w for p, w in relevant_states_weights if p.breakpoint_state == self.options['end_state']]
+        return relevant_weights
+
     def _relevant_end_values(self, experiment):
-        return [p.x[self.index] for p in experiment.states if p.breakpoint_state == self.options['end_state']]
+        relevant_pps = experiment.states
+        for conf_idx, conf_cond in self.options['confinements']:
+            relevant_pps = [p for p in relevant_pps if conf_cond(p.x[conf_idx])]
+            
+        return [p.x[self.index] for p in relevant_pps if p.breakpoint_state == self.options['end_state']]
+
 
 
 class HistogramExtractorSpatialBoundary(HistogramExtractor):
@@ -232,6 +252,14 @@ class HistogramExtractorSpatialBoundary(HistogramExtractor):
         }
         self.options.update(kwargs)
         super().__init__(*args, **self.options)
+
+    def _relevant_weights(self, experiment):
+        if self.options['use_integrator'] is None:
+            weights = np.array([1] * len(experiment.states))
+        else:
+            weights = experiment.integrator_values[self.options['use_integrator']]
+        relevant_weights = [w for p, w in zip(experiment.states, weights) if p.breakpoint_state == self.options['end_state']]
+        return relevant_weights
 
     def _relevant_end_values(self, experiment):
         return [p.t for p in experiment.states if p.breakpoint_state == self.options['end_state']]
