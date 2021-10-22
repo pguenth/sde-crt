@@ -7,7 +7,7 @@ import eigency
 cython_path = "src/pybatch/"
 include_dirs = ["src/cpp"] + eigency.get_includes()
 extra_objects = ["lib/libbatch.a"]
-extra_compile_args = []#['-fsanitize=address', '-fno-omit-frame-pointer']
+extra_compile_args = ["-std=c++11"]#['-fsanitize=address', '-fno-omit-frame-pointer']
 
 kwargs_ext = { 'include_dirs' : include_dirs, 
                'extra_objects' : extra_objects,
