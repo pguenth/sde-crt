@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 
@@ -25,6 +26,10 @@ class Exporter(ABC):
     :param dict store_opts: Options for plot exporting
         * *dir* -- Export directory path
         * *format* -- Suffix of the requested plot format
+    :\*\*kwargs:
+        * *legend*
+            Add a legend to every subplot if set to True
+
 
     """
     def __init__(self, experiment_call, store_opts, **kwargs):
@@ -32,14 +37,19 @@ class Exporter(ABC):
         self.store_opts = store_opts 
         self.fig = None
         self.axs = None
-        self.options = {}
+        self._extractors_map = []
+        self._experiment = None
+        self.options = {'legend' : True}
         self.options.update(kwargs)
 
         self.name = self.experiment_call.__name__ if not 'name' in store_opts else store_opts['name']
         self.path = "{}/{}.{}".format(self.store_opts["dir"], self.name, self.store_opts["format"])
 
+    def attach_extractor(self, extractor, to_axes):
+        self._extractors_map.append((to_axes, extractor))
+
     @abstractmethod
-    def _plot(self, experiment):
+    def _prepare_plot(self, experiment):
         """
         Override this method.
 
@@ -50,6 +60,34 @@ class Exporter(ABC):
         """
         raise NotImplementedError()
 
+    def plot(self):
+        if self._experiment is None:
+            raise Exception("Experiment was not run")
+
+        fig, axs = self._prepare_plot(self._experiment)
+
+        self.fig = fig
+        self.axs = axs
+
+        for ax, extractor in self._extractors_map:
+            extractor.plot(self._experiment, ax)
+
+        if self.options['legend']:
+            if isinstance(self.axs, Iterable):
+                for ax in axs:
+                    ax.legend()
+            else:
+                self.axs.legend()
+
+        return self.fig, self.axs
+
+    def store_plot(self):
+        logging.info("Saving figure to {}".format(self.path))
+        self.fig.savefig(self.path)
+
+    def run_experiment(self, *args, **kwargs):
+        self._experiment = self.experiment_call(*args, **kwargs)
+
     def __call__(self, *args, **kwargs):
         """
         Call to acquire the experiment or experiment set, plot it and save the plot
@@ -57,16 +95,11 @@ class Exporter(ABC):
 
         :returns: The experiment or experiment set.
         """
-        ex = self.experiment_call(*args, **kwargs)
-        fig, axs = self._plot(ex)
+        self.run_experiment(*args, **kwargs)
+        self.plot()
+        self.store_plot()
 
-        self.fig = fig
-        self.axs = axs
-
-        logging.info("Saving figure to {}".format(self.path))
-        fig.savefig(self.path)
-
-        return ex
+        return self._experiment
 
 class ExporterSinglePlot(Exporter):
     """
@@ -85,7 +118,7 @@ class ExporterSinglePlot(Exporter):
         if not 'title' in self.options:
             self.options['title'] = self.name
 
-    def _plot(self, ex):
+    def _prepare_plot(self, experiment):
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
         if self.options['log_x']:
@@ -107,12 +140,13 @@ class ExporterHist(ExporterSinglePlot):
         self.options.update(kwargs)
         super().__init__(*args, **self.options)
 
-    def _plot(self, ex):
-        fig, ax = super()._plot(ex)
+    def _prepare_plot(self, experiment):
+        fig, ax = super()._prepare_plot(experiment)
 
-        self.extractor_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
-
-        ex.plot(ax, self.extractor_x)
+        self.attach_extractor(
+                HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False})),
+                ax
+            )
 
         return fig, ax
 
@@ -154,7 +188,7 @@ class ExporterDoublePlot(Exporter):
         if not 'title' in self.options:
             self.options['title'] = self.name
 
-    def _plot(self, ex):
+    def _prepare_plot(self, experiment):
         fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
         for lx, ly, ax in zip(self.options['log_x'], self.options['log_y'], axs):
@@ -194,17 +228,19 @@ class ExporterDoubleHist(ExporterDoublePlot):
         self.options.update(kwargs)
         super().__init__(*args, **self.options)
 
-    def _plot(self, ex):
-        fig, axs = super()._plot(ex)
+    def _prepare_plot(self, experiment):
+        fig, axs = super()._prepare_plot(experiment)
 
-        self.extractor_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
-        self.extractor_p = HistogramExtractorFinish(1, **self.options)
 
-        ex.plot(axs[0], self.extractor_x)
-        ex.plot(axs[1], self.extractor_p)
+        self.attach_extractor(
+                HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False})),
+                axs[0]
+            )
 
-        for ax in axs:
-            ax.legend()
+        self.attach_extractor(
+                HistogramExtractorFinish(1, **self.options),
+                axs[1]
+            )
 
         return fig, axs
 
@@ -228,22 +264,74 @@ class ExporterDoubleHistConfineP(ExporterDoublePlot):
         self.options.update(kwargs)
         super().__init__(*args, **self.options)
 
-    def _plot(self, ex):
-        fig, axs = super()._plot(ex)
+    def _prepare_plot(self, experiment):
+        fig, axs = super()._prepare_plot(experiment)
 
         xrfp = self.options['x_range_for_p']
         p_confinements = [
                 (0, lambda x : (x > -xrfp and x < xrfp))
                 ]
 
-        self.extractor_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
-        self.extractor_p = HistogramExtractorFinish(1, **(self.options | {'confinements' : p_confinements}))
+        self.attach_extractor(
+                HistogramExtractorFinish(0, **(self.options)),# | {'auto_normalize' : False}))
+                axs[0]
+            )
 
-        ex.plot(axs[0], self.extractor_x)
-        ex.plot(axs[1], self.extractor_p)
+        self.attach_extractor(
+                HistogramExtractorFinish(1, **(self.options | {'confinements' : p_confinements})),
+                axs[1]
+            )
 
-        for ax in axs:
-            ax.legend()
+        return fig, axs
+
+class ExporterDoubleHistConfinePSingleNorm(ExporterDoublePlot):
+    """
+    Export histograms for two-dimensional problems in one figure
+    
+    :\*args: args of :py:class:`evaluation.exporters.ExporterDoublePlot`
+    :\*\*kwargs:
+        * kwargs of :py:class:`evaluation.exporters.ExporterDoublePlot`
+        * kwargs of :py:class:`evaluation.extractors.HistogramExtractorFinish`
+        * x_range_for_p : Confine PPs for the momentum plot to particles between (-x_range_for_p, x_range_for_p)
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.options = {
+                'x_range_for_p' : 5
+        }
+
+        self.options.update(kwargs)
+        super().__init__(*args, **self.options)
+
+    def _find_max_particle_count(self, experiment, extractor):
+        particle_counts = []
+        for ex in experiment.experiments.values():
+            particle_counts.append(extractor.particle_count(ex))
+        
+        return max(particle_counts)
+
+    def _prepare_plot(self, experiment):
+        fig, axs = super()._prepare_plot(experiment)
+
+        xrfp = self.options['x_range_for_p']
+        p_confinements = [
+                (0, lambda x : (x > -xrfp and x < xrfp))
+                ]
+
+        spatial_extractor = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False}))
+        norm = 1 / self._find_max_particle_count(experiment, spatial_extractor)
+        spatial_extractor.options['manual_normalization_factor'] = norm
+
+        self.attach_extractor(
+                spatial_extractor,
+                axs[0]
+            )
+
+        self.attach_extractor(
+                HistogramExtractorFinish(1, **(self.options | {'confinements' : p_confinements})),
+                axs[1]
+            )
 
         return fig, axs
 
@@ -258,14 +346,14 @@ class ExporterDoubleHistPL(ExporterDoubleHist):
         * kwargs of :py:class:`evaluation.extractors.PowerlawExtractor`
     """
 
-    def _plot(self, ex):
-        fig, axs = super()._plot(ex)
+    def _prepare_plot(self, experiment):
+        fig, axs = super()._prepare_plot(experiment)
 
         self.options['ln_x'] = not self.options['log_x'][1]
-        self.extractor_pl = PowerlawExtractor(self.extractor_p, **self.options)
-        ex.plot(axs[1], self.extractor_pl)
 
-        for ax in axs:
-            ax.legend()
-        
+        self.attach_extractor(
+                PowerlawExtractor(self.extractor_p, **self.options),
+                axs[1]
+            )
+
         return fig, axs

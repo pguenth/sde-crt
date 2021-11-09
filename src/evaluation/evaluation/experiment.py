@@ -101,6 +101,7 @@ class Experiment:
         :type extractors: :py:class:`evaluation.extractors.Extractor` or [Extractor]
         :returns: None
         """
+
         try:
             for extractor in extractors:
                 extractor.plot(self, ax, **kwargs)
@@ -143,6 +144,19 @@ class ExperimentSet:
 
         return True
 
+    def map(self, callback):
+        """
+        Run callback for every experiment in the experiment set.
+        callback recieves a string containing the name of the experiment
+        the experiment itself.
+        """
+
+        returnvalues = []
+        for name, ex in self.experiments.items():
+            returnvalues.append(callback(name, ex))
+
+        return returnvalues
+
     def plot(self, ax, extractors, **kwargs):
         """
         Plot all experiments in this set on the given `ax` with the given `extractors`.
@@ -152,6 +166,7 @@ class ExperimentSet:
         :type extractors: :py:class:`evaluation.extractors.Extractor` or [Extractor]
         :returns: None
         """
+
         for experiment in self.experiments.values():
             experiment.plot(ax, extractors, **kwargs)
 

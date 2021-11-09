@@ -7,6 +7,8 @@ sys.path.insert(0, os.path.abspath('../lib'))
 import pybatch
 from pybatch.pybreakpointstate import *
 from evaluation import helpers
+from .experiment import Experiment, ExperimentSet
+import logging
 
 class Extractor(ABC):
     """
@@ -27,7 +29,10 @@ class Extractor(ABC):
     @abstractmethod
     def data(self, experiment):
         """
-        Extract the data set from the given experiment
+        Extract the data set from the given experiment.
+        Not directly used by the base class, this is more of an example
+        on how to structure code in this classes children, but can
+        be safely ignored.
         
         :param experiment: The experiment to extract data from
         :type experiment: :py:class:`evaluation.experiment.Experiment`
@@ -36,10 +41,30 @@ class Extractor(ABC):
 
         raise NotImplementedError()
 
-    @abstractmethod
     def plot(self, experiment, ax, **kwargs):
         """
+        Plot the data of the given experiment or experiment set on the given ax
+        If given an experiment set, _single_plot is called for every experiment in the set
+
+        :param experiment: The experiment or experiment set to extract and plot data from
+        :type experiment: :py:class:`evaluation.experiment.Experiment` or :py:class:`evaluation.experiment.ExperimentSet`
+        :param matplotlib.axes.Axes ax: The axes to plot on
+        :returns: The data used to plot
+        """
+
+        if isinstance(experiment, Experiment):
+            return self._single_plot(experiment, ax, **kwargs)
+        elif isinstance(experiment, ExperimentSet):
+            return experiment.map(lambda _, ex: self._single_plot(ex, ax, **kwargs))
+        else:
+            raise ValueError("Extractors can only plot instances of Experiment or ExperimentSet")
+    
+
+    @abstractmethod
+    def _single_plot(self, experiment, ax, **kwargs):
+        """
         Plot the data of the given experiment on the given ax
+        Override this method in inherited classes.
 
         :param experiment: The experiment to extract and plot data from
         :type experiment: :py:class:`evaluation.experiment.Experiment`
@@ -72,7 +97,7 @@ class TrajectoryExtractor(Extractor):
         t = experiment.states[self.trajectory_number].trajectory
         return np.array([(p.t, p.x[self.index]) for p in t]).T
 
-    def plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax):
         t, x = self.data(experiment)
         ax.plot(t, x)
         return t, x
@@ -106,7 +131,7 @@ class MultiTrajectoryExtractor(Extractor):
 
         return trajectories
 
-    def plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax):
         trajectories = self.data(experiment)
         for t, x in trajectories:
             ax.plot(t, x)
@@ -126,6 +151,8 @@ class HistogramExtractor(Extractor):
             The average number of pseudo particles per bin. Ignored if *bin_count* is given. (default: 100)
         * *auto_normalize*  
             Normalize the total histogram area. (default: False)
+        * *manual_normalization_factor*
+            Normalize the histogram using the given factor. (default: 1)
         * *use_integrator* 
             Use the given integrator (by index). (default: None)
         * *transform*
@@ -138,6 +165,7 @@ class HistogramExtractor(Extractor):
             'bin_count' : None,
             'average_bin_size' : 100,
             'auto_normalize' : False,
+            'manual_normalization_factor' : 1,
             'use_integrator' : None,
             'transform' : None,
         }
@@ -161,6 +189,9 @@ class HistogramExtractor(Extractor):
     @abstractmethod
     def _relevant_end_values(self, experiment):
         raise NotImplementedError()
+
+    def particle_count(self, experiment):
+        return len(self._relevant_end_values(experiment))
         
     def data(self, experiment):
         rev = self._relevant_end_values(experiment)
@@ -174,6 +205,8 @@ class HistogramExtractor(Extractor):
             print("verr", len(weights), len(arr), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), np.array(rev).T[0])
             raise e
             
+        logging.debug(self.options['manual_normalization_factor'])
+        histogram = histogram * self.options['manual_normalization_factor']
         param = edges[:-1] + (edges[1:] - edges[:-1]) / 2
 
         try:
@@ -186,7 +219,7 @@ class HistogramExtractor(Extractor):
 
         return param, histogram
 
-    def plot(self, experiment, ax, **kwargs):
+    def _single_plot(self, experiment, ax, **kwargs):
         param, histogram = self.data(experiment)
         ax.plot(param, histogram, label=experiment.name, **kwargs)
 
@@ -292,7 +325,7 @@ class PowerlawExtractor(Extractor):
         
         return a, q
 
-    def plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax):
         a, q = self.data(experiment)
 
         if self.options['ln_x']:
@@ -306,3 +339,7 @@ class PowerlawExtractor(Extractor):
 
         helpers.add_curve_to_plot(ax, func, label=label)
         return a, q
+
+#class HistogramParticleCountExtractor(Extractor):
+
+
