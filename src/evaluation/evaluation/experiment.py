@@ -147,13 +147,13 @@ class ExperimentSet:
     def map(self, callback):
         """
         Run callback for every experiment in the experiment set.
-        callback recieves a string containing the name of the experiment
-        the experiment itself.
+        callback recieves a string containing the name of the experiment,
+        the experiment itself and the experiment set
         """
 
         returnvalues = []
         for name, ex in self.experiments.items():
-            returnvalues.append(callback(name, ex))
+            returnvalues.append(callback(name, ex, self))
 
         return returnvalues
 

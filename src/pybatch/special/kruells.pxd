@@ -34,3 +34,12 @@ cdef extern from "batch_kruells.h":
 
     cdef cppclass BatchKruells8(PseudoParticleBatch):
         BatchKruells8(map[string, double] params) except +
+
+    cdef cppclass BatchKruells9(PseudoParticleBatch):
+        BatchKruells9(map[string, double] params) except +
+
+    cdef cppclass BatchKruellsB1(PseudoParticleBatch):
+        BatchKruellsB1(map[string, double] params) except +
+
+    cdef cppclass BatchKruellsC1(PseudoParticleBatch):
+        BatchKruellsC1(map[string, double] params) except +

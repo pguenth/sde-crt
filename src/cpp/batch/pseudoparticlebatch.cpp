@@ -112,13 +112,29 @@ int PseudoParticleBatch::run(int particle_count){
     return finished_count();
 }
 
-/*
+*
  * manual threading 
- *
+ */
+
+
+struct ThreadArgs {
+    PseudoParticleBatch *batch;
+    int mod_base;
+    int mod_res;
+};
+
+void *run_wrapper(void *arg){
+    struct ThreadArgs args = *(static_cast<ThreadArgs *>(arg));
+    args.batch->run_mod(args.mod_base, args.mod_res);
+    return nullptr;
+}
+
 void PseudoParticleBatch::run_mod(int mod_base, int mod_res){
     int run_count = 0;
     for (int i = 0; i < count(); i++){
+        //std::cout << "thread " << mod_res << " of " << mod_base << " start\n";
         if (i % mod_base == mod_res){
+            //std::cout << "thread " << mod_res << " of " << mod_base << " running particle " << i << "\n";
             run_count++;
             _particles[i].run();
         }
@@ -129,18 +145,23 @@ void PseudoParticleBatch::run_mod(int mod_base, int mod_res){
 int PseudoParticleBatch::run(int particle_count){
     int nthreads = 1;
 
-    std::vector<std::thread> threads;
+    std::vector<pthread_t> threads(nthreads);
+    std::vector<struct ThreadArgs> thread_args(nthreads);
     for (int i = 0; i < nthreads; i++){
-        auto callback = [this, nthreads, i]() { run_mod(nthreads, i); };
-        threads.push_back(std::thread(callback));
+        //auto callback = [this, nthreads, i]() { run_mod(nthreads, i); };
+        thread_args[i].batch = this;
+        thread_args[i].mod_base = nthreads;
+        thread_args[i].mod_res = i;
+        pthread_create(&(threads[i]), nullptr, &run_wrapper, &(thread_args[i]));
     }
 
+    void *ret;
     for (auto& thread : threads){
-        thread.join();
+        pthread_join(thread, &ret);
     }
     
     return 0;
-}*/
+}
 
 bool PseudoParticleBatch::finished(){
     _check_init();

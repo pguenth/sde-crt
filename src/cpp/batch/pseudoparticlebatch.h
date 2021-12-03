@@ -7,7 +7,7 @@
 #include <boost/asio/thread_pool.hpp>
 #include <boost/asio/post.hpp>
 
-#define NTHREADS 1
+#define NTHREADS 8
 
 class PseudoParticleBatch {
     private:
@@ -87,7 +87,7 @@ class PseudoParticleBatch {
          */
         int run(int particle_count = -1);
         //int run_some(int particle_count = -1);
-        //void run_mod(int mod_base, int mod_res);
+        void run_mod(int mod_base, int mod_res);
 
         bool finished();
         int finished_count();

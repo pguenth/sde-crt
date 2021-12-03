@@ -142,4 +142,57 @@ class BatchKruells8 : public PseudoParticleBatch {
                 BatchKruells8(std::map<std::string, double> params);
                 ~BatchKruells8();
 };
+
+/**
+ */
+class BatchKruells9 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells9(std::map<std::string, double> params);
+                ~BatchKruells9();
+};
+
+/**
+ */
+class BatchKruellsB1 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruellsB1(std::map<std::string, double> params);
+                ~BatchKruellsB1();
+};
+/**
+ */
+class BatchKruellsC1 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruellsC1(std::map<std::string, double> params);
+                ~BatchKruellsC1();
+};
 #endif

@@ -8,6 +8,7 @@ import pybatch
 from pybatch.pybreakpointstate import *
 from evaluation import helpers
 from .experiment import Experiment, ExperimentSet
+from scipy import stats
 import logging
 
 class Extractor(ABC):
@@ -53,15 +54,15 @@ class Extractor(ABC):
         """
 
         if isinstance(experiment, Experiment):
-            return self._single_plot(experiment, ax, **kwargs)
+            return self._single_plot(experiment, ax, None, **kwargs)
         elif isinstance(experiment, ExperimentSet):
-            return experiment.map(lambda _, ex: self._single_plot(ex, ax, **kwargs))
+            return experiment.map(lambda _, ex, exset: self._single_plot(ex, ax, exset, **kwargs))
         else:
             raise ValueError("Extractors can only plot instances of Experiment or ExperimentSet")
     
 
     @abstractmethod
-    def _single_plot(self, experiment, ax, **kwargs):
+    def _single_plot(self, experiment, ax, exset, **kwargs):
         """
         Plot the data of the given experiment on the given ax
         Override this method in inherited classes.
@@ -69,6 +70,7 @@ class Extractor(ABC):
         :param experiment: The experiment to extract and plot data from
         :type experiment: :py:class:`evaluation.experiment.Experiment`
         :param matplotlib.axes.Axes ax: The axes to plot on
+        :param exset: The whole experiment set, if available
         :returns: The data used to plot
         """
 
@@ -97,7 +99,7 @@ class TrajectoryExtractor(Extractor):
         t = experiment.states[self.trajectory_number].trajectory
         return np.array([(p.t, p.x[self.index]) for p in t]).T
 
-    def _single_plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax, exset):
         t, x = self.data(experiment)
         ax.plot(t, x)
         return t, x
@@ -131,7 +133,7 @@ class MultiTrajectoryExtractor(Extractor):
 
         return trajectories
 
-    def _single_plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax, exset):
         trajectories = self.data(experiment)
         for t, x in trajectories:
             ax.plot(t, x)
@@ -158,7 +160,10 @@ class HistogramExtractor(Extractor):
         * *transform*
             Callable for applying transformations to the histogram. (default: None).
             Can be a list of callables, in this case the item with index *index* is used.
-            The callable recieves an array of x values and an array of y values, in this order.
+            The callable recieves an array of x values and an array of y values, in this order
+            and has to return a tuple of the same two (transformed) arrays.
+        * *log_bins*
+            Use logarithmic bins.
     """
     def __init__(self, index, **kwargs):
         self.options = {
@@ -168,6 +173,7 @@ class HistogramExtractor(Extractor):
             'manual_normalization_factor' : 1,
             'use_integrator' : None,
             'transform' : None,
+            'log_bins' : False
         }
         self.options.update(kwargs)
         super().__init__(**self.options)
@@ -197,12 +203,17 @@ class HistogramExtractor(Extractor):
         rev = self._relevant_end_values(experiment)
         weights = self._relevant_weights(experiment)
         bin_count = type(self)._get_bin_count(self.options, len(rev))
+        rev_dim = np.array(rev).T[0]
+
+        if self.options['log_bins']:
+            bins = np.logspace(np.log10(min(rev_dim)), np.log10(max(rev_dim)), bin_count + 1)
+        else:
+            bins = np.linspace(min(rev_dim), max(rev_dim), bin_count + 1)
 
         try:
-            histogram, edges = np.histogram(np.array(rev).T[0], bin_count, weights=weights, density=self.options['auto_normalize'])
+            histogram, edges = np.histogram(rev_dim, bins=bins, weights=weights, density=self.options['auto_normalize'])
         except ValueError as e:
-            arr = np.array(rev).T[0]
-            print("verr", len(weights), len(arr), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), np.array(rev).T[0])
+            print("verr", len(weights), len(rev_dim), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), rev_dim)
             raise e
             
         logging.debug(self.options['manual_normalization_factor'])
@@ -210,16 +221,16 @@ class HistogramExtractor(Extractor):
         param = edges[:-1] + (edges[1:] - edges[:-1]) / 2
 
         try:
-            histogram = self.options['transform'](param, histogram)
+            param, histogram = self.options['transform'](param, histogram)
         except TypeError:
             try:
-                histogram = self.options['transform'][self.index](param, histogram)
+                param, histogram = self.options['transform'][self.index](param, histogram)
             except TypeError:
                 pass
 
         return param, histogram
 
-    def _single_plot(self, experiment, ax, **kwargs):
+    def _single_plot(self, experiment, ax, exset, **kwargs):
         param, histogram = self.data(experiment)
         ax.plot(param, histogram, label=experiment.name, **kwargs)
 
@@ -309,7 +320,8 @@ class PowerlawExtractor(Extractor):
                 'guess' : [1, -1],
                 'label' : "Power law",
                 'ln_x' : False,
-                'powerlaw_annotate' : False
+                'powerlaw_annotate' : False,
+                'only_max_T' : True
         }
         self.options.update(kwargs)
 
@@ -325,7 +337,17 @@ class PowerlawExtractor(Extractor):
         
         return a, q
 
-    def _single_plot(self, experiment, ax):
+    def _single_plot(self, experiment, ax, exset):
+        # only do something if this is the experiment with the
+        # largest Tmax value
+        if self.options['only_max_T'] and not exset is None:
+            max_T = 0
+            for ex in exset.experiments.values():
+                max_T = max(max_T, ex.params['Tmax'])
+
+            if not experiment.params['Tmax'] == max_T:
+                return
+         
         a, q = self.data(experiment)
 
         if self.options['ln_x']:
@@ -340,6 +362,36 @@ class PowerlawExtractor(Extractor):
         helpers.add_curve_to_plot(ax, func, label=label)
         return a, q
 
-#class HistogramParticleCountExtractor(Extractor):
+class PowerlawExtractorLinreg(PowerlawExtractor):
+    """
+    Fit a powerlaw using linear regression after logarithmising the data
+
+    :param data_extractor: Extractor from which the data is pulled
+    :type data_extractor: :py:class:`evaluation.extractors.Extractor` returning some kind of 2-d data
+    """
+
+    def data(self, experiment):
+        x, y = self.data_extractor.data(experiment)
+        
+        # cut data at the first empty bin
+        # most physical solution imho, because ignoring zeroes
+        # is not really good
+        if np.count_nonzero(y) == len(y):
+            max_index = len(y)
+        else:
+            max_index = np.argmax(y == 0)
+
+        x = x[:max_index]
+        y = y[:max_index]
+
+        if not self.options['ln_x']:
+            x = np.log(x)
+
+        y = np.log(y)
+        
+        m, t, *_ = stats.linregress(x, y)
+        
+        return np.exp(t), m
+
 
 

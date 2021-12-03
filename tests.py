@@ -142,6 +142,7 @@ def ex_kruells2a():
     return exset
 
 test_kruells2a = ExporterDoubleHist(ex_kruells2a, store_opts, log_x=(False, False), log_y=(True, True), bin_count=50)
+test_kruells2a2 = ExporterHist(ex_kruells2a, store_opts, figsize=(4,4), log_x=False, log_y=True, bin_count=50)
 
 """ *********** """
 """ Kruells 3 """
@@ -592,6 +593,11 @@ test_kruells7c = ExporterDoubleHistConfineP(
         auto_normalize=True
 )
 
+
+"""
+7c with a single normalisation on all spatial histograms
+"""
+
 @cached(**cache_opts)
 def ex_kruells7c1():
     param = { 'Xsh' : 0.25,
@@ -615,6 +621,47 @@ def ex_kruells7c1():
 
 test_kruells7c1 = ExporterDoubleHistConfinePSingleNorm(
         ex_kruells7c1,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=5,
+        #average_bin_size=200,
+        bin_count=30,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, False),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (None, None)),
+        auto_normalize=True
+)
+
+"""
+7c1 with more detail
+"""
+
+@cached(**cache_opts)
+def ex_kruells7c2():
+    param = { 'Xsh' : 0.25,
+              'kappa' : 5,
+              'beta_s' : 1,
+              'r' : 4,
+              'dt' : 0.1,
+              't_inj' : 0.00003,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'u0' : 0,
+              'q' : 1
+            }
+
+    times = np.array([6.4, 20, 64, 200])
+
+    exset = ExperimentSet(PyBatchKruells7, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells7c2 = ExporterDoubleHistConfinePSingleNorm(
+        ex_kruells7c2,
         store_opts,
         log_y=(True, True),
         x_range_for_p=5,
@@ -750,6 +797,337 @@ test_kruells8 = ExporterDoubleHistPL(
         use_integrator=0
 )
 
+"""
+like 7, but with 94 parametrisation
+"""
+
+@cached(**cache_opts)
+def ex_kruells9():
+    param = { 'Xsh' : 0.002,
+              'beta_s' : 0.06,
+              'r' : 4,
+              'dt' : 0.001,
+              't_inj' : 0.0003,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'y0' : 1,
+              'q' : 1
+            }
+
+    times = np.array([0.64, 2.0, 6.4, 20])
+
+    exset = ExperimentSet(PyBatchKruells9, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells9 = ExporterDoubleHistConfinePSingleNormPL(
+        ex_kruells9,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=0.05,
+        #average_bin_size=200,
+        bin_count=30,
+        log_bins=(False, True),
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "p/p_inj"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (1, 10**(1.5))),
+        ylim=((None, None), (10**(-3.5), 10**(0.5))),
+        auto_normalize=True,
+        powerlaw_annotate=True,
+        #transform=(None, lambda y, U: (y, y**2 * U))
+)
+
+"""
+more detail
+"""
+
+@cached(**cache_opts)
+def ex_kruells9a():
+    param = { 'Xsh' : 0.002,
+              'beta_s' : 0.06,
+              'r' : 4,
+              'dt' : 0.001,
+              't_inj' : 0.0003,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'y0' : 1,
+              'q' : 1
+            }
+
+    times = np.array([0.64, 2.0, 6.4, 20, 200])
+
+    exset = ExperimentSet(PyBatchKruells9, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells9a = ExporterDoubleHistConfinePSingleNormPL(
+        ex_kruells9a,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=0.05,
+        #average_bin_size=400,
+        bin_count=30,
+        log_bins=(False, True),
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "p/p_inj"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (1, 10**(1.5))),
+        ylim=((None, None), (10**(-3.5), 10**(0.5))),
+        auto_normalize=True,
+        powerlaw_annotate=True,
+        #transform=(None, lambda y, U: (y, y**2 * U))
+)
+
+"""
+t_inj = dt
+"""
+
+@cached(**cache_opts)
+def ex_kruells9a1():
+    param = { 'Xsh' : 0.002,
+              'beta_s' : 0.06,
+              'r' : 4,
+              'dt' : 0.001,
+              't_inj' : 0.001,
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'y0' : 1,
+              'q' : 1
+            }
+
+    times = np.array([0.64, 2.0, 6.4, 20, 200])
+
+    exset = ExperimentSet(PyBatchKruells9, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruells9a1 = ExporterDoubleHistConfinePSingleNormPL(
+        ex_kruells9a1,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=0.05,
+        #average_bin_size=400,
+        bin_count=30,
+        log_bins=(False, True),
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "p/p_inj"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (1, 10**(1.5))),
+        ylim=((None, None), (10**(-3.5), 10**(0.5))),
+        auto_normalize=True,
+        powerlaw_annotate=True,
+        #transform=(None, lambda y, U: (y, y**2 * U))
+)
+
+""" *********** """
+""" Kruells B1 """
+""" Reproduce 1994/Fig. 4
+    using continous pseudo particle injection
+    (like kruells 923)
+
+    parametrisation of 1992 paper
+
+"""
+
+@cached(**cache_opts)
+def ex_kruellsB1():
+    param = { 'Xsh' : 0.25,
+              'gamma' : 0.2,
+              'r' : 3,
+              'dt' : 0.01,
+              't_inj' : 0.1,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'a1' : 9,
+            }
+
+    times = np.array([640, 2000])
+
+    exset = ExperimentSet(PyBatchKruellsB1, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruellsB1 = ExporterDoubleHistConfineP(
+        ex_kruellsB1,
+        store_opts,
+        log_y=(True, True),
+        x_range_for_p=10,
+        #average_bin_size=200,
+        bin_count=30,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (None, None)),
+        auto_normalize=True
+)
+
+@cached(**cache_opts)
+def ex_kruellsB1a():
+    param = { 'Xsh' : 0.25,
+              'gamma' : 0.2,
+              'r' : 3,
+              'dt' : 0.01,
+              't_inj' : 0.001,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'a1' : 9,
+            }
+
+    times = np.array([64, 200, 640])
+
+    exset = ExperimentSet(PyBatchKruellsB1, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruellsB1a = ExporterDoubleHistConfineP(
+        ex_kruellsB1a,
+        store_opts,
+        log_y=(True, True),
+        log_bins=(False, True),
+        x_range_for_p=5,
+        #average_bin_size=200,
+        bin_count=30,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (None, None)),
+        auto_normalize=True
+)
+
+@cached(**cache_opts)
+def ex_kruellsB1b():
+    param = { 'Xsh' : 0.25,
+              'gamma' : 0.2,
+              'r' : 3,
+              'dt' : 0.01,
+              't_inj' : 0.002,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'a1' : 9,
+            }
+
+    times = np.array([64, 200, 640])
+
+    exset = ExperimentSet(PyBatchKruellsB1, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruellsB1b = ExporterDoubleHistConfineP(
+        ex_kruellsB1b,
+        store_opts,
+        log_y=(True, True),
+        log_bins=(False, True),
+        x_range_for_p=5,
+        #average_bin_size=200,
+        bin_count=30,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (None, None)),
+        auto_normalize=True
+)
+
+@cached(**cache_opts)
+def ex_kruellsB1c():
+    param = { 'Xsh' : 0.25,
+              'gamma' : 0.2,
+              'r' : 3,
+              'dt' : 0.01,
+              't_inj' : 0.0004,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'a1' : 9,
+            }
+
+    times = np.array([64, 200, 640])
+
+    exset = ExperimentSet(PyBatchKruellsB1, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruellsB1c = ExporterDoubleHistConfineP(
+        ex_kruellsB1c,
+        store_opts,
+        log_y=(True, True),
+        log_bins=(False, True),
+        x_range_for_p=5,
+        #average_bin_size=200,
+        bin_count=100,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "ln(p/p_inj)"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (10**-1, 10**1)),
+        ylim=((None, None), (10**-4, 10**1)),
+        auto_normalize=True,
+        # transform=(None, lambda x, y : (x, y / x)) this is worse, and makes no sense 
+)
+
+@cached(**cache_opts)
+def ex_kruellsC1a():
+    param = { 'kappa' : 1,
+              'a2' : 0.01,
+              'k_syn' : 0,
+              'dt' : 0.004,
+              't_inj' : 0.0004,
+              'x0' : 0,
+              'y0' : 1,
+              'Lx' : 20,
+              'Lylower' : 0,
+              'Lyupper' : 200,
+            }
+
+    times = np.array([64, 640])
+
+    exset = ExperimentSet(PyBatchKruellsC1, generate_timerange(param, times))
+    exset.run()
+
+    return exset
+
+test_kruellsC1a = ExporterDoubleHistConfineP(
+        ex_kruellsC1a,
+        store_opts,
+        log_y=(True, True),
+        log_bins=(False, True),
+        x_range_for_p=0.2,
+        #average_bin_size=200,
+        bin_count=200,
+        subtitles=("Spatial", "Momentum"),
+        xlabels=("x", "p/p_inj"),
+        ylabels=("Particle count", "Particle count"),
+        log_x=(False, True),
+        title="Reproduction of Krülls (1994)",
+        xlim=((None, None), (10**-1, 10**2)),
+        ylim=((None, None), (10**-3, 10**0)),
+        auto_normalize=True,
+        # transform=(None, lambda x, y : (x, y / x)) this is worse, and makes no sense 
+)
+
 """ ***************** """
 """ Run experiment(s) """
 if __name__ == '__main__':
@@ -758,14 +1136,26 @@ if __name__ == '__main__':
     #test_kruells3a()
     #test_kruells2()
     #test_kruells2a()
+    #test_kruells2a2()
     #test_kruells5()
     #test_kruells8()
     #test_kruells4()
-    test_kruells7c1()
-    test_kruells7c()
+    #test_kruells7c2()
+    #test_kruells7c1()
+    #test_kruells7c()
     #test_kruells7d()
     #test_kruells7e()
     #test_kruells7a()
     #test_kruells7b()
     #test_kruells6a()
     #test_kruells6c()
+    #test_kruells9()
+    #test_kruells9a()
+    test_kruells9a1()
+
+    #test_kruellsB1()
+    #test_kruellsB1a()
+    #test_kruellsB1b()
+    #test_kruellsB1c()
+
+    #test_kruellsC1a()

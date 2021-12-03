@@ -123,3 +123,49 @@ cdef class PyBatchKruells8(PyPseudoParticleBatch):
             tmp = <BatchKruells8 *>self._batch;
             del tmp
             self._batch = NULL
+
+cdef class PyBatchKruellsB1(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruellsB1(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruellsB1 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruellsB1 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruellsB1 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruellsB1 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchKruellsC1(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruellsC1(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruellsC1 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruellsC1 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruellsC1 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruellsC1 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchKruells9(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruells9(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruells9 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruells9 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruells9 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruells9 *>self._batch;
+            del tmp
+            self._batch = NULL
+
