@@ -16,6 +16,7 @@ class WienerProcess: public StochasticProcess {
     public:
         WienerProcess(int ndim, void *seed);
         Eigen::VectorXd next(double timestep);
+        StochasticProcess *copy(void *seed);
 };
 
 #endif

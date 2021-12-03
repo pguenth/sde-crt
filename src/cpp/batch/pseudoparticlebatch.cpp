@@ -60,7 +60,14 @@ void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vec
 
     _particles = std::vector<PseudoParticle>();
 
+    std::seed_seq seq{};
+    std::vector<std::uint32_t> seeds(_starts.size());
+    seq.generate(seeds.begin(), seeds.end());
+    auto seed = seeds.begin();
+
     for (auto &s: _starts){
+        _options.seed = *seed;
+        seed = std::next(seed);
         _particles.push_back(PseudoParticle(_callbacks, s, _options));
     }
 }
@@ -88,7 +95,7 @@ int PseudoParticleBatch::step_all(int steps){
     return finished_count();
 }
 
-
+/*
 int PseudoParticleBatch::run(int particle_count){
     _check_init();
 

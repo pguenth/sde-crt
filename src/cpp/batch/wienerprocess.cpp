@@ -14,3 +14,7 @@ Eigen::VectorXd WienerProcess::next(double timestep){
 
     return v;
 }
+
+StochasticProcess *WienerProcess::copy(void *seed){
+    return new WienerProcess(_ndim, seed);
+}

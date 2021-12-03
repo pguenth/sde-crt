@@ -11,6 +11,7 @@ class StochasticProcess {
     public:
         StochasticProcess(int ndim, void *seed = nullptr);
         virtual Eigen::VectorXd next(double timestep) = 0;
+        virtual StochasticProcess *copy(void *seed) = 0;
 };
 
 //class DummyProcess : public StochasticProcess<int> {

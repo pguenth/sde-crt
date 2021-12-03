@@ -2,9 +2,6 @@
 
 StochasticProcess::StochasticProcess(int ndim, void *seed) : _ndim(ndim) {}
 
-
-
-
 //DummyProcess::DummyProcess(int ndim, int seed) : _ndim(ndim) {}
 //Eigen::VectorXd DummyProcess::next(double timestep) {
 //    Eigen::VectorXd(_ndim) v;
