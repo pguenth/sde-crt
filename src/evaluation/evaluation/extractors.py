@@ -209,15 +209,21 @@ class HistogramExtractor(Extractor):
             bins = np.logspace(np.log10(min(rev_dim)), np.log10(max(rev_dim)), bin_count + 1)
         else:
             bins = np.linspace(min(rev_dim), max(rev_dim), bin_count + 1)
+            print("bins", bins)
 
         try:
+            # auto normalize is now done automatically
             histogram, edges = np.histogram(rev_dim, bins=bins, weights=weights, density=self.options['auto_normalize'])
+            print("edges", edges)
         except ValueError as e:
             print("verr", len(weights), len(rev_dim), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), rev_dim)
             raise e
             
-        logging.debug(self.options['manual_normalization_factor'])
-        histogram = histogram * self.options['manual_normalization_factor']
+        if not self.options['auto_normalize']:
+            norm = self.options['manual_normalization_factor'] / (edges[1] - edges[0]) 
+            logging.info("Normalize by {}, edges {}, manual_normalization_factor {}".format(norm, edges, self.options['manual_normalization_factor']))
+            histogram = histogram * norm
+
         param = edges[:-1] + (edges[1:] - edges[:-1]) / 2
 
         try:

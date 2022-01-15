@@ -9,9 +9,9 @@ class StochasticProcess {
         int _ndim;
 
     public:
-        StochasticProcess(int ndim, void *seed = nullptr);
+        StochasticProcess(int ndim, std::vector<uint64_t> seeds = {});
         virtual Eigen::VectorXd next(double timestep) = 0;
-        virtual StochasticProcess *copy(void *seed) = 0;
+        virtual StochasticProcess *copy(std::vector<uint64_t> seeds) = 0;
 };
 
 //class DummyProcess : public StochasticProcess<int> {

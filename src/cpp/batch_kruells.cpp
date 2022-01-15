@@ -32,9 +32,7 @@ Eigen::MatrixXd kruells921_diffusion(const Eigen::VectorXd& x, double T){
 
 BatchKruells1::BatchKruells1(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -136,6 +134,14 @@ Eigen::MatrixXd kruells_shockaccel_diffusion(const Eigen::VectorXd& x, double ka
     return v;
 }
 
+// dxs is also called X_sh
+Eigen::VectorXd kruells_shockaccel_pure_drift(const Eigen::VectorXd& x, double Xsh, double a, double b){
+    Eigen::VectorXd v(2);
+    v(0) = kruells94_beta(x(0), Xsh, a, b);
+    v(1) = -(x(1)) * kruells94_dbetadx(x(0), Xsh, b) / 3;
+    return v;
+}
+
 
 Eigen::VectorXd kruells_shockaccel2_drift_94(const Eigen::VectorXd& x, double Xsh, double a, double b, double k_syn, double q){
     Eigen::VectorXd v(2);
@@ -175,9 +181,7 @@ Eigen::MatrixXd kruells_shockaccel2_diffusion(const Eigen::VectorXd& x, double X
 
 BatchKruells2::BatchKruells2(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -227,9 +231,7 @@ BatchKruells2::~BatchKruells2(){
 
 BatchKruells3::BatchKruells3(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -289,9 +291,7 @@ double kruells94_injection_region(const Eigen::VectorXd& s, double a_inj, double
 
 BatchKruells4::BatchKruells4(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -346,9 +346,7 @@ BatchKruells4::~BatchKruells4(){
 
 BatchKruells5::BatchKruells5(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -400,9 +398,7 @@ BatchKruells5::~BatchKruells5(){
 
 BatchKruells6::BatchKruells6(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -454,9 +450,7 @@ BatchKruells6::~BatchKruells6(){
 
 BatchKruells7::BatchKruells7(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -508,9 +502,7 @@ BatchKruells7::~BatchKruells7(){
 
 BatchKruells8::BatchKruells8(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -564,9 +556,7 @@ BatchKruells8::~BatchKruells8(){
 
 BatchKruells9::BatchKruells9(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -614,6 +604,111 @@ BatchKruells9::~BatchKruells9(){
     //delete _sintegrator;
 }
 
+// ******************************************   KRUELLS 10 ****************************************** //
+
+BatchKruells10::BatchKruells10(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    double L = msa(params, "L");
+    Eigen::VectorXd xmin(2), xmax(2);
+    xmin << -L, 0;
+    xmax << L, std::numeric_limits<double>::infinity();
+    _slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel_pure_drift, _1, msa(params, "Xsh"), a, b);
+    auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = msa(params, "dt");
+    opt.tracked = false;
+
+    // initialize
+    initialize(callbacks, starts, opt);
+}
+
+BatchKruells10::~BatchKruells10(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+// ******************************************   KRUELLS 11 ****************************************** //
+
+BatchKruells11::BatchKruells11(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    Eigen::VectorXd xmin(2), xmax(2);
+    xmin << -msa(params, "L"), 0;
+    xmax << msa(params, "L"), std::numeric_limits<double>::infinity();
+    _slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = msa(params, "dt");
+    opt.tracked = false;
+
+    // initialize
+    initialize(callbacks, starts, opt);
+}
+
+BatchKruells11::~BatchKruells11(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
 // *************** KRUELLS B1 *************
 // Schlumpfhüte: KruellsBx
 //
@@ -637,9 +732,7 @@ Eigen::MatrixXd kruells_shockaccel3_diffusion(const Eigen::VectorXd& x, double k
 
 BatchKruellsB1::BatchKruellsB1(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -721,9 +814,7 @@ Eigen::VectorXd kruells_2ndorder_drift(const Eigen::VectorXd& x, double k_syn, d
 
 BatchKruellsC1::BatchKruellsC1(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(2, &seed);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));

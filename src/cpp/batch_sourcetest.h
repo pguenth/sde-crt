@@ -3,6 +3,7 @@
 
 #include <Eigen/Core>
 #include <vector>
+#include <map>
 #include <iostream>
 #include "batch/wienerprocess.h"
 #include "batch/breakpoint.h"

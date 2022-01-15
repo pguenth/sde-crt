@@ -133,6 +133,7 @@ class ExperimentSet:
             self.experiments[name] = Experiment(batch_cls, ps, **kwargs)
 
     def __del__(self):
+        # this is useless i think
         for ex in self.experiments.values():
             del ex
 

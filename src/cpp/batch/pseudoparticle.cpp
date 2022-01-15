@@ -13,7 +13,7 @@ PseudoParticleOptions::PseudoParticleOptions (const PseudoParticleOptions& p){
     tracked = p.tracked;
     breakpoints = p.breakpoints;
     process = p.process;
-    seed = p.seed;
+    seeds = p.seeds;
 
     _integrators = std::list<TrajectoryLiveIntegrator *>();
 
@@ -28,7 +28,7 @@ PseudoParticleOptions& PseudoParticleOptions::operator= (const PseudoParticleOpt
     tracked = p.tracked;
     breakpoints = p.breakpoints;
     process = p.process;
-    seed = p.seed;
+    seeds = p.seeds;
 
     for (auto &elem : _integrators) delete elem;
     _integrators.clear();
@@ -45,7 +45,7 @@ PseudoParticleOptions::PseudoParticleOptions (PseudoParticleOptions&& p){
     tracked = p.tracked;
     breakpoints = p.breakpoints;
     process = p.process;
-    seed = p.seed;
+    seeds = p.seeds;
 
     _integrators= std::list<TrajectoryLiveIntegrator *>();
     for (auto liveint : p.integrators()){
@@ -58,7 +58,7 @@ PseudoParticleOptions& PseudoParticleOptions::operator= (PseudoParticleOptions&&
     tracked = p.tracked;
     breakpoints = p.breakpoints;
     process = p.process;
-    seed = p.seed;
+    seeds = p.seeds;
     
     for (auto &elem : _integrators) delete elem;
     _integrators.clear();
@@ -82,10 +82,9 @@ void PseudoParticle::_construct(PseudoParticleCallbacks callbacks, SpaceTimePoin
 
     if (_options.process == nullptr) {
         throw std::logic_error("No stochastic process is given");
-        //_options.process = new WienerProcess(start.x.size(), 0);
     }
 
-    _options.process = _options.process->copy(&_options.seed);
+    _options.process = _options.process->copy(_options.seeds);
 
     int max_steps;
     if (_options.tracked){

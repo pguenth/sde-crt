@@ -1,6 +1,6 @@
 #include "stochasticprocess.h"
 
-StochasticProcess::StochasticProcess(int ndim, void *seed) : _ndim(ndim) {}
+StochasticProcess::StochasticProcess(int ndim, std::vector<uint64_t> seeds) : _ndim(ndim) {}
 
 //DummyProcess::DummyProcess(int ndim, int seed) : _ndim(ndim) {}
 //Eigen::VectorXd DummyProcess::next(double timestep) {

@@ -36,7 +36,7 @@ typedef struct PseudoParticleOptions {
         std::list<TrajectoryBoundary *> boundaries;
 
         StochasticProcess *process = nullptr;
-        uint32_t seed = 0;
+        std::vector<uint64_t> seeds;
 
         PseudoParticleOptions();
         ~PseudoParticleOptions();

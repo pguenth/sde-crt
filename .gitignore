@@ -10,3 +10,6 @@ __pycache__/
 docs-build/
 docs/doxy/xml
 tests_old/
+testcache/
+figures-old/
+figures/

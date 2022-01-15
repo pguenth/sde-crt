@@ -50,6 +50,13 @@ const PseudoParticle& PseudoParticleBatch::operator[] (int index){
     return _particles[index];
 }
 
+uint64_t __one_seed(pcg32_unique& rng){
+    uint64_t s = (static_cast<uint64_t>(rng())) << 32;
+    s |= (static_cast<uint64_t>(rng()));
+    return s;
+}
+
+
 void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
     _callbacks = callbacks;
     _options = options;
@@ -60,14 +67,13 @@ void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vec
 
     _particles = std::vector<PseudoParticle>();
 
-    std::seed_seq seq{};
-    std::vector<std::uint32_t> seeds(_starts.size());
-    seq.generate(seeds.begin(), seeds.end());
-    auto seed = seeds.begin();
+    uint64_t batch_seed = 1234578901234567; 
+    pcg32_unique seed_rng(batch_seed);
 
     for (auto &s: _starts){
-        _options.seed = *seed;
-        seed = std::next(seed);
+        _options.seeds.clear();
+        _options.seeds.push_back(__one_seed(seed_rng));
+        _options.seeds.push_back(__one_seed(seed_rng));
         _particles.push_back(PseudoParticle(_callbacks, s, _options));
     }
 }

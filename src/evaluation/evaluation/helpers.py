@@ -41,7 +41,7 @@ def fit_powerlaw(x, y, guess = [1, -1]):
     popt, _ = curve_fit(f, x, y, guess)
     return popt
 
-def add_curve_to_plot(ax, fkt, detail = 200, label = "", xlim_plot = None, **kwargs):
+def add_curve_to_plot(ax, fkt, detail = 200, label = "", xlim_plot = None, reset_lims=True, **kwargs):
     """
     Add a function's curve to a plot
 
@@ -67,8 +67,9 @@ def add_curve_to_plot(ax, fkt, detail = 200, label = "", xlim_plot = None, **kwa
     
     ax.plot(xfit, yfit, label = label, **kwargs)
     
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
+    if reset_lims:
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
 
 def cached(**kwargs):
     """

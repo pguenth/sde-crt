@@ -3,9 +3,11 @@
 
 #include <Eigen/Core>
 #include <vector>
+#include <map>
 #include <cmath>
 #include <iostream>
 #include <functional>
+#include <limits>
 #include "batch/wienerprocess.h"
 #include "batch/breakpoint.h"
 #include "batch/integrator.h"
@@ -159,6 +161,42 @@ class BatchKruells9 : public PseudoParticleBatch {
                  */
                 BatchKruells9(std::map<std::string, double> params);
                 ~BatchKruells9();
+};
+
+/**
+ */
+class BatchKruells10 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells10(std::map<std::string, double> params);
+                ~BatchKruells10();
+};
+
+/**
+ * BatchKruells9 with spatial limit L
+ */
+class BatchKruells11 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells11(std::map<std::string, double> params);
+                ~BatchKruells11();
 };
 
 /**

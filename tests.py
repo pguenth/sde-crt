@@ -871,7 +871,7 @@ test_kruells9a = ExporterDoubleHistConfinePSingleNormPL(
         log_y=(True, True),
         x_range_for_p=0.05,
         #average_bin_size=400,
-        bin_count=30,
+        bin_count=40,
         log_bins=(False, True),
         subtitles=("Spatial", "Momentum"),
         xlabels=("x", "p/p_inj"),
@@ -879,8 +879,8 @@ test_kruells9a = ExporterDoubleHistConfinePSingleNormPL(
         log_x=(False, True),
         title="Reproduction of Krülls (1994)",
         xlim=((None, None), (1, 10**(1.5))),
-        ylim=((None, None), (10**(-3.5), 10**(0.5))),
-        auto_normalize=True,
+        ylim=((10**-3, 0.5), (10**(-3.5), 10**(1))),
+        auto_normalize=(False, True),
         powerlaw_annotate=True,
         #transform=(None, lambda y, U: (y, y**2 * U))
 )
@@ -895,7 +895,7 @@ def ex_kruells9a1():
               'beta_s' : 0.06,
               'r' : 4,
               'dt' : 0.001,
-              't_inj' : 0.001,
+              't_inj' : 0.2,
               'k_syn' : 0,#.0001,
               'x0' : 0,
               'y0' : 1,
@@ -924,7 +924,7 @@ test_kruells9a1 = ExporterDoubleHistConfinePSingleNormPL(
         title="Reproduction of Krülls (1994)",
         xlim=((None, None), (1, 10**(1.5))),
         ylim=((None, None), (10**(-3.5), 10**(0.5))),
-        auto_normalize=True,
+        auto_normalize=False,
         powerlaw_annotate=True,
         #transform=(None, lambda y, U: (y, y**2 * U))
 )
@@ -1084,7 +1084,7 @@ test_kruellsB1c = ExporterDoubleHistConfineP(
         title="Reproduction of Krülls (1994)",
         xlim=((None, None), (10**-1, 10**1)),
         ylim=((None, None), (10**-4, 10**1)),
-        auto_normalize=True,
+        auto_normalize=False,
         # transform=(None, lambda x, y : (x, y / x)) this is worse, and makes no sense 
 )
 
@@ -1150,8 +1150,8 @@ if __name__ == '__main__':
     #test_kruells6a()
     #test_kruells6c()
     #test_kruells9()
-    #test_kruells9a()
-    test_kruells9a1()
+    test_kruells9a()
+    #test_kruells9a1()
 
     #test_kruellsB1()
     #test_kruellsB1a()

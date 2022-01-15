@@ -240,8 +240,13 @@ class ExporterDoubleHist(ExporterDoublePlot):
         super().__init__(*args, **self.options)
 
     def _get_extractors(self, experiment):
-        self.ex_x = HistogramExtractorFinish(0, **(self.options | {'auto_normalize' : False, 'log_bins' : self.options['log_bins'][0]}))
-        self.ex_p = HistogramExtractorFinish(1, **self.options | {'log_bins' : self.options['log_bins'][1]})
+        if not (type(self.options['auto_normalize']) is list
+                or type(self.options['auto_normalize']) is tuple):
+
+            self.options['auto_normalize'] = [self.options['auto_normalize'], self.options['auto_normalize']]
+
+        self.ex_x = HistogramExtractorFinish(0, **(self.options | {'log_bins' : self.options['log_bins'][0], 'auto_normalize' : self.options['auto_normalize'][0]}))
+        self.ex_p = HistogramExtractorFinish(1, **(self.options | {'log_bins' : self.options['log_bins'][1], 'auto_normalize' : self.options['auto_normalize'][1]}))
         return self.ex_x, self.ex_p
 
 
@@ -364,7 +369,7 @@ class ExporterDoubleHistPL(ExporterDoubleHist):
 
         return fig, axs
         
-class ExporterDoubleHistConfinePSingleNormPL(ExporterDoubleHistConfineP):
+class ExporterDoubleHistConfinePSingleNormPL(ExporterDoubleHistConfinePSingleNorm):
     """
     Export histograms for two-dimensional problems in one figure
     

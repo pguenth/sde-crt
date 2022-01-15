@@ -26,9 +26,7 @@ double integrator_cb(const Eigen::VectorXd& x){
 
 BatchSourcetest::BatchSourcetest(std::map<std::string, double> params){
     // get a random generator
-    std::random_device rdseed;
-    pcg32::state_type seed = rdseed();
-    _process = new WienerProcess(1, &seed);
+    _process = new WienerProcess(1);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(params["Tmax"]);
