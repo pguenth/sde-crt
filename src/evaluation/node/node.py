@@ -405,7 +405,24 @@ class NodePlotGroup(EvalNode):
 
         return self._parent_data
 
+class LambdaNode(EvalNode):
+    def do(self, parent_data, common, **kwargs):
+        cb = kwargs['callback']
 
+        if isinstance(parent_data, list) and len(parent_data) == 1:
+            return cb(parent_data[0])
+        elif isinstance(parent_data, list):
+            return_list = []
+            for v in parent_data:
+                return_list.append(v)
+            return return_list
+        elif isinstance(parent_data, dict) and len(parent_data == 1):
+            return cb(list(parent_data.values())[0])
+        elif isinstance(parent_data, dict):
+            return_dict = {}
+            for k, v in parent_data.items():
+                return_dict[k] = cb(v)
+            return return_dict
 
 class CommonCallbackNode(EvalNode):
     def do(self, parent_data, common, **kwargs):

@@ -423,15 +423,21 @@ class PowerlawStudy:
                 log_bins=True, 
                 plot=False,
                 cache=cache,
-                ignore_cache=False,
+                ignore_cache=True,
                 style='line',
                 color_cycle=cycle,
                 label=self.datapoint_label
             )
 
+        divp = LambdaNode('divp', [histogramp],
+                callback = lambda h: h,#(h[0], h[1] / h[0], h[2] / h[0]),
+                cache=cache,
+                ignore_cache=False
+            )
+
         powerlaw = PowerlawNode(
                 'pl', 
-                {'dataset' : histogramp },
+                {'dataset' : divp },
                 plot=False,
                 color_cycle=cycle
             )
