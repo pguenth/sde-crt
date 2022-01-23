@@ -160,14 +160,71 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         return new
 
     def __getitem__(self, index):
+        """
+        __getitem__ for nodes return a node which in turn 
+        subscripts the return value of this nodes do() call 
+        on evaluation. (and returns this subscripted value)
+
+        This may be confusing but I found it to be very useful
+        in constructing node chains. It also encourages the use
+        of nodes as if they were their generated/returned values.
+
+        This also implies that the object returned is kind of
+        a "future", only containing actual subscripted data
+        when the node chain is run. This also makes the functions
+        __contains__ and __iter__ unavailable to base classes
+        since it is not known to the base class what subclasses'
+        do() call might return.
+
+        You are encouraged to override __contains__ and/or
+        __iter__ for custom subclasses if senseful return values
+        can be provided. Further information:
+            - https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+            - https://docs.python.org/3/reference/expressions.html#membership-test-details
+        """
         return SubscriptedNode('_{}_subs_{}'.format(self.name, index), parents=self, subscript=index)
+
+    def __contains__(self, item):
+        """
+        This function always raises an exception. For more
+        information on that read __getitem__()
+        """
+        raise TypeError("Generally, subscripting nodes works by subscripting the return value of do(). Therefore it cannot be known to the base class (EvalNode) if this value contains an item.")
+
+    def __iter__(self, index):
+        """
+        This function always raises an exception. For more
+        information on that read __getitem__()
+        """
+        raise TypeError("Generally, subscripting nodes works by subscripting the return value of do(). Therefore it cannot be known to the base class (EvalNode) if this value contains an item.")
 
     @property
     def parents_iter(self):
+        """
+        Returns an iterator that can be handled uniformly
+        for any type of parents (list or dict).
+        For lists, it is enumerate(parents), and for dict
+        it is parents.items()
+        """
         if type(self.parents) is list:
             return enumerate(self.parents)
         elif type(self.parents) is dict:
             return self.parents.items()
+        else:
+            raise TypeError("parents must be either dict or list")
+
+    def parents_contains(self, key):
+        """
+        Returns True of the parents iterator contains an item
+        with the given key.
+
+        For parents stored as list, this is equal to 'key < len(parents)'
+        and for parents stored as dict, this is eqal to 'key in parents'
+        """
+        if type(self.parents) is list:
+            return key < len(self.parents)
+        elif type(self.parents) is dict:
+            return key in self.parents
         else:
             raise TypeError("parents must be either dict or list")
 
@@ -358,7 +415,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 class SubscriptedNode(EvalNode):
     def subclass_init(self, parents, **kwargs):
         if not isinstance(parents, EvalNode) and len(parents) > 1:
-            raise ValueError("DebugOutNode can only have one parent node")
+            raise ValueError("SubscriptedNode can only have one parent node")
         self.never_cache = True
 
     def do(self, parent_data, common, **kwargs):
@@ -368,6 +425,9 @@ class NodeGroup(EvalNode):
     def subclass_init(self, parents, **kwargs):
         super().subclass_init(parents, **kwargs)
         self.never_cache = True
+
+    def __contains__(self, key):
+        return self.parents_contains(key)
 
     def do(self, parent_data, common, **kwargs):
         return parent_data
@@ -451,7 +511,7 @@ class NodeSet(EvalNode):
         elif len(parents) == 1:
             common = parents[next(iter(parents))]
         elif len(parents) != 1:
-            common = EvalNodeGroup('g', parents)
+            common = NodeGroup('g', parents)
 
         this_parents = {}
         for i, (lp, kw) in enumerate(zip(kwargs['last_parents'], kwargs['kwargs'])):

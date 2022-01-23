@@ -1,4 +1,5 @@
 import networkx as nx 
+import proplot as pplt
 
 def collect_parents(graph, labels, start):
     for slot, p in start.parents_iter:
