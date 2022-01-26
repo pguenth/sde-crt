@@ -277,7 +277,7 @@ class PowerlawNode(EvalNode):
 
         label = kwargs['label']
         if kwargs['powerlaw_annotate']:
-            label += ' $q={:.2f}\\pm{:.2f}$'.format(q, dq)
+            label += ' $q={:.2f}\\pm {:.2f}$'.format(q, dq)
 
         if 'color' in common:
             color = common['color']

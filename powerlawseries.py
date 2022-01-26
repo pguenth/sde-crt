@@ -4,19 +4,12 @@ sys.path.insert(0, 'src/evaluation')
 from node.special import *
 from node.node import *
 from node.cache import PickleNodeCache
+from node.nodefigure import *
 from pybatch.special.kruells import *
 import proplot as pplt
 import logging
 import numpy as np
 from dataclasses import dataclass
-from typing import Callable
-
-def fa_with(**kwargs):
-    fig = pplt.figure()
-    ax = fig.subplot()
-    ax.format(**kwargs)
-
-    return fig, ax
 
 @dataclass
 class PowerlawSeriesVariable:
@@ -24,87 +17,64 @@ class PowerlawSeriesVariable:
     name: str
     values: list
 
-#@dataclass
-#class PowerlawSeriesParameters:
-#@dataclass
-#class PowerlawSeriesBatch:
-#    batch_cls: object
-#    default_params: dict
-#    abstract_params: dict
-#    param_callback: Callable
-
-
-
 class PowerlawSeries:
-    def __init__(self, name, batch_cls, variable, def_params, abstract_param={}, param_callback=None, confine_x=np.inf, cachepath="pickle", reeval=False):
+    def __init__(self, chain, variable, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None):
         """
-        param_callback: function(dict, dict) -> dict
+        last_kwargs_callback: function(dict, **kwargs) -> dict
             is called once for each datapoint.
-            the first dict passed is a dictionary containing the values of the parameters
-            that are changed in the simulation, the second dict is the dict of default
-            parameters and the third dict is abstract_param.
+            the callback recieves a dict containing the variable name and value and
+            items from other_values as well as items from callback_kwargs as kwargs
 
-            has to return a dict with simulation parameters that have to be modified for 
-            the respective run and their values and a second dict with other parameters
-            that are passed on to label_fmt_fields
+            it has to return a dict which is used as last_kwargs for the respective
+            copy of the chain.
         """
         self.name = name
-        self.param_name = variable.name
-        self.param_human_name = variable.human_name
-        self.param_values = variable.values
-        self.def_params = def_params
-        self.abstract_param = abstract_param
-        self._chains = None
-        self._datarow_chain = None
+        self.var = variable
+        self.last_kwargs_callback = last_kwargs_callback
+        self.last_parents = last_parents
+        self.other_values = other_values
+        self.callback_kwargs = callback_kwargs
 
-        self.confine_x = confine_x
-
-        self.cachepath = cachepath
-
-        if param_callback is None:
-            # simply return the first dict
-            self.param_callback = lambda p, d, a: (p, a)
+        if label_template is None:
+            self.label_template = "Powerlaw indizes for different ${human_name}$"
         else:
-            self.param_callback = param_callback
+            self.label_template = label_template
 
-        self._acquire_datapoint_chain(batch_cls, reeval)
+        self.chain = chain
+
+        self._datarow_chain = None
+        self._chains = None
+        self._histogram_chains = None
 
     def _get_chains(self):
         d = {}
-        d_spatial = {}
-        for param_val in self.param_values:
-            param_dict = {self.param_name: param_val}
-            new_name = "_{}={}".format(self.param_name, param_val)
-            modified_params, additional_params = self.param_callback(param_dict, self.def_params, self.abstract_param)
+        for param_val in self.var.values:
+            param_dict = self.other_values | {self.var.name: param_val}
+            if self.name == "":
+                new_name = "_{}={}".format(self.var.name, param_val)
+            else:
+                new_name = "_{}_{}={}".format(self.name, self.var.name, param_val)
+            last_kwargs = self.last_kwargs_callback(param_dict, **self.callback_kwargs)
+            print(last_kwargs)
             d[param_val] = self.chain.copy(
                     new_name,
-                    param=self.def_params | modified_params,
-                    label_fmt_fields=modified_params | additional_params
-                )
-            d_spatial[param_val] = self.chain_spatial.copy( 
-                    new_name,
-                    last_parents={'points': d[param_val].search_parent('points')}
+                    last_kwargs=last_kwargs,
+                    last_parents=self.last_parents
                 )
 
-        return d, d_spatial
-
-    @property
-    def chains_spatial(self):
-        if self._chains is None:
-            self._chains = self._get_chains()
-
-        return self._chains[1]
+        return d
 
     @property
     def chains(self):
         if self._chains is None:
             self._chains = self._get_chains()
 
-        return self._chains[0]
+        return self._chains
 
     def _get_datarow_chain(self):
-        label = "Powerlaw indizes for different ${}$".format(self.param_human_name)
-        return ScatterNode('scatter', self.chains, label=label, plot=True)
+        label = self.label_template.format(human_name=self.var.human_name)
+        chains = [dp.parents['datapoint'] for dp in self.chains.values()]
+        return ScatterNode('scatter_{}'.format(self.name), chains, label=label, plot=True)
 
     @property
     def datarow_chain(self):
@@ -113,417 +83,93 @@ class PowerlawSeries:
 
         return self._datarow_chain
 
-    def _acquire_datapoint_chain(self, batch_cls, reeval):
-        """
-        Get the evaluation chain for one data point
-        """
-        cycle = ColorCycle(['red', 'green', 'blue', 'yellow', 'black', 'violet'])
-        cache = PickleNodeCache(self.cachepath, self.name)
-
-        batch = BatchNode('batch',
-                batch_cls = batch_cls,
-                cache=cache,
-                ignore_cache=False
-            )
-
-        points = PointNode('points', {'batch' : batch}, cache=cache, ignore_cache=False)
-
-        valuesp = ValuesNode('valuesp', 
-                {'points' : points},
-                index=1,
-                cache=cache, 
-                ignore_cache=reeval,
-                confinements=[(0, lambda x : np.abs(x) < self.confine_x)]
-            )
-
-        histogramp = HistogramNode('histop',
-                {'values' : valuesp}, 
-                bin_count=15, 
-                normalize='density',
-                log_bins=True, 
-                plot=False,
-                cache=cache,
-                ignore_cache=False,
-                style='line',
-                color_cycle=cycle,
-                label="${}={{{}}}$".format(self.param_human_name, self.param_name)
-            )
-
-        powerlaw = PowerlawNode(
-                'pl', 
-                {'dataset' : histogramp },
-                plot=False,
-                color_cycle=cycle
-            )
-
-        xparam_get = CommonCallbackNode(
-                'xparam_get',
-                parents=histogramp,
-                callback=lambda c: c['batch_param'][self.param_name]
-            )
-
-        self.chain = NodeGroup('group', {'x' : xparam_get, 'y': powerlaw[1], 'dy' : powerlaw[3]})
-
-        valuesx = ValuesNode('valuesx', 
-                index=0,
-                cache=cache, 
-                ignore_cache=False,
-            )
-
-        histogramx = HistogramNode('histox',
-                {'values' : valuesx}, 
-                bin_count=40, 
-                normalize='width',
-                log_bins=False, 
-                plot=True,
-                cache=cache,
-                ignore_cache=False,
-                style='line',
-            )
-
-        self.chain_spatial = histogramx  
-
-    @staticmethod
-    def histo_fig_fmt(title=None):
-        fig, axs = pplt.subplots(ncols=2, share=False, tight=True)
-        axs[1].format(
-            xscale='log',
-            yscale='log',
-            xformatter=pplt.SciFormatter(),
-            yformatter=pplt.SciFormatter(),
-            title=title,
-            xlabel='$p/p_\\textrm{inj}$',
-            ylabel='particle number density'
-        )
-
-        axs[0].format(yscale='log', xlabel='x', ylabel='particle number density')
-        return fig, axs
-
-    @staticmethod
-    def histo_fig_save(fig, axs, name, figpath):
-        axs[1].legend(loc='r', ncol=1)
-        fig.savefig("{}/{}-histograms.pdf".format(figpath, name))
-
-    def get_histograms(self, axs):
+    def _get_histogram_chains(self):
+        xs = []
+        ps = []
         for _, chain in self.chains.items():
-            pl = chain.search_parent("pl")
+            xs.append(chain.search_parent("histox"))
+            ps.append(chain.search_parent("pl"))
 
-            hist.do_plot = True
-            pl.do_plot = True
+        return NodeGroup("xs", xs), NodeGroup("ps", ps)
 
-            pl(axs[1])
+    @property
+    def histogram_chains(self):
+        if self._histogram_chains is None:
+            self._histogram_chains = self._get_histogram_chains()
 
-            hist.do_plot = False
-            pl.do_plot = False
+        return self._histogram_chains
 
-        for _, node_chain in self.chains_spatial.items():
-            node_chain(axs[0])
+    def plot_histograms(self, path, nfigure_format, title=None):
+        chain_x, chain_p = self.histogram_chains
+        nfig = NodeFigure(nfigure_format, suptitle=title)
+        nfig.add(chain_x, 0, plot_on='spectra')
+        nfig.add(chain_p, 1, plot_on='spectra')
+        nfig.savefig(path)
 
-    @staticmethod
-    def series_fig_fmt(title=None):
-        fig, ax = fa_with(
-            xscale='log',
-            xformatter=pplt.SciFormatter(),
-            yformatter=pplt.SciFormatter(),
-            title=title,
-            xlabel=self.param_name,
-            ylabel='Powerlaw index'
-        )
-        return fig, ax
+    def plot_datarow(self, path, nfigure_format, **kwargs):
+        nfig = NodeFigure(nfigure_format, **kwargs)
+        nfig.add(self.datarow_chain)
+        nfig.savefig(path)
 
-    def series_fig_save(fig, ax, name, figpath):
-        ax.legend(loc='r', ncol=1)
-        fig.savefig("{}/{}-series.pdf".format(figpath, name))
-
-    def get_series(self, axs):
-        self.datarow_chain(ax)
-
-
-
-
-@dataclass
-class PowerlawStudyConfig:
-    datarows_name: str
-    # one datarow is generated for each value in this list
-    # when calling plot_momentum_spectra, one plot is created
-    # for each value in this list each containing one histogram
-    # for each value in datapoint_values
-    datarow_values: list
-    datarow_label: str
-
-    datapoints_name: str
-
-    # the values that are passed one at a time to param_callback as second parameter
-    datapoint_values: list
-
-    # the label for the momentum spectra histograms.
-    # .format is called on this label with the values of both dicts returned by param_callback
-    datapoint_label: str 
-
-    xlabel: str
-    xscale: str
-
-    datapoint_id_fmt_str: str
-
-    # the default parameters passed to each pybatch instance (see param_callback)
-    def_param: dict
-
-    # parameters that param_callback needs for additional calculations
-    add_param: dict
-
-    confine_x: float
-
-    # param_callback is passed:
-    #   - one value of datarow_values 
-    #   - one value of datapoint_values
-    #   - def_param
-    #   - add_param 
-    # It is expected to return two dicts, one passed to the pybatch instance
-    # as parameters (in addition to def_param) and one that is passed to label_fmt_fields
-    # and to other String.format calls
-    param_callback: Callable
-
-    # this callable is passed to the CommonCallbackNode used to generate the x-axis values
-    # from the common dict (which is containing the return value of param_callback as 
-    # label_fmt_fields and batch_param resp).
-    xparam_callback: Callable
-
-    figpath: str = "figures"
-    cachepath: str = "pickle"
-
-
-class PowerlawStudy:
-    def __init__(self, name, batch_cls, config):
+class PowerlawMultiSeries:
+    def __init__(self, chain, variable_rows, variable_points, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None):
         self.name = name
+        self.varr = variable_rows
 
-        self.datarows_name = config.datarows_name
-        self.datarow_values = config.datarow_values
-        self.datarow_label = config.datarow_label
+        if label_template is None:
+            label_template = "${var_name}={var_val}$"
 
-        self.datapoints_name = config.datapoints_name
-        self.datapoint_values = config.datapoint_values
-        self.datapoint_label = config.datapoint_label
+        self.series_dict = {}
+        for row_val in self.varr.values:
+            label_t = label_template.format(var_name=self.varr.human_name, var_val=row_val)
+            self.series_dict[row_val] = PowerlawSeries(
+                    chain,
+                    variable_points,
+                    last_kwargs_callback,
+                    name="{}={}".format(self.varr.name, row_val),
+                    last_parents=last_parents,
+                    other_values=other_values | {self.varr.name : row_val},
+                    callback_kwargs=callback_kwargs,
+                    label_template=label_t
+                )
 
-        self.datapoint_id_fmt_str = config.datapoint_id_fmt_str
+        self._datarows_chain = None
+        self._histogram_chains = None
 
-        self.xlabel = config.xlabel
-        self.xscale= config.xscale
-
-        self.def_param = config.def_param
-        self.add_param = config.add_param
-
-        self.confine_x = config.confine_x
-
-        self.param_callback = config.param_callback
-        self.xparam_callback = config.xparam_callback
-
-        self.figpath = config.figpath
-        self.cachepath = config.cachepath
-
-        self._acquire_datapoint_chain(batch_cls)
-        self._datapoint_chains = None
-        self._datarow_chains = None
-        self._full_chain = None
-    
-    def _get_datapoint_chains(self):
-        dr_dict = {}
-        dr_dict_spatial = {}
-        for dr_val in self.datarow_values:
-            d = {}
-            d_spatial = {}
-            for dp_val in self.datapoint_values:
-                new_param, new_meta_param = self.param_callback(dr_val, dp_val, self.def_param, self.add_param)
-                new_id = ('_' + self.datapoint_id_fmt_str).format(**(new_param | new_meta_param))
-                d[dp_val] = self.datapoint_chain.copy(
-                        new_id,
-                        param = self.def_param | new_param,
-                        label_fmt_fields = new_param | new_meta_param
-                    )
-                d_spatial[dp_val] = self.datapoint_chain_spatial.copy(
-                        new_id,
-                        last_parents={'points': d[dp_val].search_parent('points')}
-                    )
-            dr_dict[dr_val] = d
-            dr_dict_spatial[dr_val] = d_spatial
-
-        return dr_dict, dr_dict_spatial
-
-    def _get_datarow_chains(self):
-        datarow_chains = []
-        for dr_val, dp_chain in self.datapoint_chains.items():
-            n = ScatterNode('scatter_{}={}'.format(self.datarows_name, dr_val), dp_chain, label=self.datarow_label.format(dr_val), plot=True)
-            datarow_chains.append(n)
-
-        return datarow_chains
+    def _get_datarows_chain(self):
+        chains = [ps.datarow_chain for ps in self.series_dict.values()]
+        return NodeGroup('multiseries', chains)
 
     @property
-    def datapoint_chains(self):
-        if self._datapoint_chains is None:
-            self._datapoint_chains = self._get_datapoint_chains()
+    def datarows_chain(self):
+        if self._datarows_chain is None:
+            self._datarows_chain = self._get_datarows_chain()
 
-        return self._datapoint_chains[0]
+        return self._datarows_chain
 
-    @property
-    def datapoint_chains_spatial(self):
-        if self._datapoint_chains is None:
-            self._datapoint_chains = self._get_datapoint_chains()
-
-        return self._datapoint_chains[1]
+    def _get_histogram_chains(self):
+        return {val : ps.histogram_chains() for val, ps in self.series_dict.items()}
 
     @property
-    def datarow_chains(self):
-        if self._datarow_chains is None:
-            self._datarow_chains = self._get_datarow_chains()
+    def histogram_chains(self):
+        if self._histogram_chains is None:
+            self._histogram_chains = self._get_histogram_chains()
 
-        return self._datarow_chains
+        return self._histogram_chains
 
-    @property
-    def full_chain(self):
-        if self._full_chain is None:
-            self._full_chain = NodeGroup('datarows', self.datarow_chains)
+    def plot_histograms(self, path, nfigure_format, title_template=None):
+        if title_template is None:
+            title_template = "Histograms for ${var_name}={var_val}$"
 
-        return self._full_chain
+        for val, ps in self.series_dict.items():
+            title = title_template.format(var_name=self.varr.human_name, var_val=val)
+            if self.name == "":
+                this_path = "{}/histograms_{}={}.pdf".format(path, self.varr.name, val)
+            else:
+                this_path = "{}/{}_histograms_{}={}.pdf".format(path, self.name, self.varr.name, val)
+            ps.plot_histograms(this_path, nfigure_format, title)
 
-    def plot_momentum_spectra(self, title_fmt_str=None):
-        if title_fmt_str is None:
-            title_fmt_str = 'Power laws for different diffusion steps. ${}={}$'
-
-        for dr_val in self.datapoint_chains.keys():
-            fig, axs = pplt.subplots(ncols=2, share=False, tight=True)
-            axs[1].format(
-                xscale='log',
-                yscale='log',
-                xformatter=pplt.SciFormatter(),
-                yformatter=pplt.SciFormatter(),
-                title=title_fmt_str.format(self.datarows_name, dr_val),
-                xlabel='$p/p_\\textrm{inj}$',
-                ylabel='particle number density'
-            )
-
-            axs[0].format(yscale='log', xlabel='x', ylabel='particle number density')
-
-            for _, node_chain  in self.datapoint_chains[dr_val].items():
-                hist = node_chain.search_parent("histop")
-                pl = node_chain.search_parent("pl")
-
-                hist.do_plot = True
-                pl.do_plot = True
-
-                pl(axs[1])
-
-            for _, node_chain  in self.datapoint_chains_spatial[dr_val].items():
-                node_chain(axs[0])
-
-            axs[1].legend(loc='r', ncol=1)
-            fig.savefig("{}/{}-{}={}.pdf".format(self.figpath, self.name, self.datarows_name, dr_val))
-
-    def _acquire_datapoint_chain(self, batch_cls):
-        """
-        Get the evaluation chain for one data point
-        """
-        cycle = ColorCycle(['red', 'green', 'blue', 'yellow', 'black', 'violet'])
-        cache = PickleNodeCache(self.cachepath, self.name)
-
-        batch = BatchNode('batch',
-            batch_cls = batch_cls,
-            cache=cache,
-            ignore_cache=False
-            )
-
-        points = PointNode('points', {'batch' : batch}, cache=cache, ignore_cache=False)
-
-        valuesp = ValuesNode('valuesp', 
-                {'points' : points},
-                index=1,
-                cache=cache, 
-                ignore_cache=False,
-                confinements=[(0, lambda x : np.abs(x) < self.confine_x)]
-            )
-
-        histogramp = HistogramNode('histop',
-                {'values' : valuesp}, 
-                bin_count=30, 
-                normalize='density',
-                log_bins=True, 
-                plot=False,
-                cache=cache,
-                ignore_cache=False,
-                style='line',
-                color_cycle=cycle,
-                label=self.datapoint_label
-            )
-
-        powerlaw = PowerlawNode(
-                'pl', 
-                {'dataset' : histogramp },
-                plot=False,
-                color_cycle=cycle
-            )
-
-        xparam_get = CommonCallbackNode(
-                'xparam_get',
-                parents=histogramp,
-                callback=self.xparam_callback
-            )
-
-        self.datapoint_chain = NodeGroup('group', {'x' : xparam_get, 'y': powerlaw[1], 'dy' : powerlaw[3]})
-
-        valuesx = ValuesNode('valuesx', 
-                index=0,
-                cache=cache, 
-                ignore_cache=False,
-            )
-
-        histogramx = HistogramNode('histox',
-                {'values' : valuesx}, 
-                bin_count=15, 
-                normalize='width',
-                log_bins=False, 
-                plot=True,
-                cache=cache,
-                ignore_cache=False,
-                style='line',
-            )
-
-        self.datapoint_chain_spatial = histogramx  
-
-    def plot_datarows(self, title=None, comparison=None, comparison_label=None):
-        if title is None:
-            title = "Momentum spectrum power law indices for\\\\different diffusion and advection lengths"
-
-        fig = pplt.figure(suptitle=title, tight=True)
-        ax = fig.subplot()
-        ax.format(
-            xlabel=self.xlabel,
-            ylabel='Powerlaw index $s$',
-            xscale=self.xscale,
-            #xscale=pplt.LogScale(base=2, subs=(1, 2)),
-            #xlocator=invdeltas,
-            xmargin=10
-        )
-
-
-        self.full_chain(ax)
-
-        xlim = ax.get_xlim()
-        ax.format(xlim=(xlim[0] * 0.8, xlim[1] * 1.2))
-
-        if not comparison is None and not comparison_label is None:
-            labels = []
-            for comp_val, s in comparison:
-                ax.hlines(s, *(ax.get_xlim()), c='gray', ls='dotted', lw=1)
-                labels.insert(0, "${}$".format(comp_val))
-
-            ox = ax.dualy(lambda x : x)
-            ox.format(
-                ylabel=comparison_label,
-                ylocator=np.array(comparison).T[1],
-                yminorlocator=[],
-                yticklabels=labels,
-                yticklabelsize='x-small'
-              )
-
-
-        ax.legend(loc='ll', ncol=1)
-
-        fig.savefig('{}/{}.pdf'.format(self.figpath, self.name))
+    def plot_datarows(self, path, nfigure_format, **kwargs):
+        nfig = NodeFigure(nfigure_format, **kwargs)
+        nfig.add(self.datarows_chain)
+        nfig.savefig(path)
