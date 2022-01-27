@@ -20,6 +20,17 @@ class PowerlawSeriesVariable:
 class PowerlawSeries:
     def __init__(self, chain, variable, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None):
         """
+        Creates a series of chains similar to chain with changed parameters.
+        The chain is expected to have a parent called 'datapoint' which in turn
+        is a NodeGroup (or similar) that can be used to fill a ScatterNode instance.
+
+        All copies of the chain recieve last_kwargs as returned by the respective
+        callback function and last_parents.
+
+        If the chain also contains nodes named 'histox' and 'pl', the histograms
+        of spatial and momentum distribution can also be plotted automatically
+        (or manually by retrieving one NodeGroup per subplot).
+
         last_kwargs_callback: function(dict, **kwargs) -> dict
             is called once for each datapoint.
             the callback recieves a dict containing the variable name and value and
@@ -55,7 +66,6 @@ class PowerlawSeries:
             else:
                 new_name = "_{}_{}={}".format(self.name, self.var.name, param_val)
             last_kwargs = self.last_kwargs_callback(param_dict, **self.callback_kwargs)
-            print(last_kwargs)
             d[param_val] = self.chain.copy(
                     new_name,
                     last_kwargs=last_kwargs,

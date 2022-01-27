@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod, ABCMeta
+from collections.abc import MutableMapping
+import copy
 import logging
 from functools import wraps
 from itertools import count
@@ -131,7 +133,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         are overriden in the copy for this EvalNode and all of its parents.
 
         The top-level EvalNode (having no parents) is created with
-        *last_parents* as parents. Its kwargs are updated with * **kwargs *
+        *last_parents* as parents. Its kwargs are updated with *last_kwargs*
+        where kwargs which are itself dicts are merged into the existing
+        dicts. The **kwargs of the EvalNode instance that is copied is
+        deepcopied, which may lead to unexpected behaviour. (Maybe add:
+        optionally deepcopy or copy)
 
         Other EvalNodes in the chain keep the kwargs used at the time
         of their creation.
@@ -168,11 +174,18 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
                 cpy_or_memo = p.copy(name_suffix, plot, ignore_cache, last_parents, last_kwargs, memo=memo)#, **kwargs)
                 new_parents[n] = cpy_or_memo
 
+            kwargs_use = copy.deepcopy(self.ext)
+
             if len(new_parents) == 0:
                 new_parents = last_parents
-                kwargs_use = self.ext | last_kwargs
-            else:
-                kwargs_use = self.ext
+
+                # merge items whose values are dicts
+                for k, v in last_kwargs.items():
+                    if k in kwargs_use and isinstance(v, MutableMapping):
+                        kwargs_use[k] |= v
+                    else:
+                        kwargs_use[k] = v
+
 
             new = type(self)(self.name + name_suffix,
                     parents=new_parents,
@@ -208,6 +221,13 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         can be provided. Further information:
             - https://docs.python.org/3/reference/datamodel.html#emulating-container-types
             - https://docs.python.org/3/reference/expressions.html#membership-test-details
+
+        Also notice that NodeGroup overrides this behaviour because
+        the subscription of the do()-call return value is equivalent to
+        subscripting the dictionary of parents of the NodeGroup.
+        Since these two are generally not the same the default
+        behaviour is as stated here and EvalNode.parents can be 
+        subscripted for the other possible outcome.
         """
         return SubscriptedNode('_{}_subs_{}'.format(self.name, index), parents=self, subscript=index)
 
@@ -468,6 +488,8 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         Using this method is discouraged because customizing
         parent attachment can mess with copy semantics.
         """
+        # doing this is optional, if subclass_init returns
+        # None, this is the default behaviour
         self.parents = parents
 
     def common(self, common, **kwargs):
@@ -525,6 +547,9 @@ class NodeGroup(EvalNode):
 
     def __contains__(self, key):
         return self.parents_contains(key)
+
+    def __getitem__(self, key):
+        return self.parents[key]
 
     def do(self, parent_data, common, **kwargs):
         return parent_data
