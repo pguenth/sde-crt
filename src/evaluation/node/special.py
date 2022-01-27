@@ -277,7 +277,7 @@ class PowerlawNode(EvalNode):
 
         label = kwargs['label']
         if kwargs['powerlaw_annotate']:
-            label += ' $q={:.2f}\\pm{:.2f}$'.format(q, dq)
+            label += ' $q={:.2f}\\pm {:.2f}$'.format(q, dq)
 
         if 'color' in common:
             color = common['color']
@@ -297,6 +297,26 @@ class CommonParamNode(EvalNode):
 
 
 class ScatterNode(EvalNode):
+    """
+    This node collects data from a list of parents and
+    presents them in a scatter plot with optional y errors.
+
+    Parent specification:
+    Expects an iterable of parents in which each item
+    can be subscripted with 'x' and 'y' and optional 'dy'
+    for y errors.
+
+    kwargs:
+     * label: The label of the datarow
+
+    """
+    def def_kwargs(self, **kwargs):
+        kwargs = {
+            'label' : '',
+        } | kwargs
+
+        return kwargs
+
     def do(self, parent_data, common, **kwargs):
         x = []
         y = []
@@ -329,8 +349,6 @@ class ScatterNode(EvalNode):
             bardata = [0 if b is None else b for b in bardata]
         else:
             bardata = dy
-        print("xy", x, y)
-        print("param", common['batch_param'])
 
         ax.plot(x, y, bardata=bardata, label=kwargs['label'], lw=1, barlw=0.5, marker='x', capsize=1.0)
 
