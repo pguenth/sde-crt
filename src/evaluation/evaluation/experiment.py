@@ -5,8 +5,6 @@ from multiprocessing import Process
 from itertools import count
 
 class Experiment:
-    _ids = count(0)
-
     """
     Wrapper class for PyPseudoParticleBatch class.
     
@@ -15,9 +13,12 @@ class Experiment:
     :param dict params: Simulation parameters which *batch_cls* gets passed
 
     :\*\*kwargs:
-        * *name* 
+        *name* 
             The name of this experiment
     """
+
+    _ids = count(0)
+
     def __init__(self, batch_cls, params, **kwargs):
         self.id = next(self._ids)
         self.options = {

@@ -64,26 +64,89 @@ class InstanceCounterMeta(ABCMeta):
         cls._instance_ids = count(0)
 
 class EvalNode(ABC, metaclass=InstanceCounterMeta):
+    """
+    This is the base class for every node in a node chain/tree.
+    
+    A node tree can be though of as a series of subsequent operations on some
+    data. This data can come from running an experiment, reading a file,...
+    and can be processed in an arbitrary number of small, well defined steps
+    to yield results from this data. Every type of step is implemented as
+    decendant of this class. Optionally, a step (=Node) can also show its 
+    results by plotting them. Also *EvalNode* handles caching of every step
+    if neccessary.
+
+    The idea is to create a set of decendant classes of *EvalNode* for the steps
+    you need for your evaluation. Then you create a tree of EvalNodes by
+    creating instances and linking them in the order neccessary to achieve your
+    desired result. This linking is achieved by the paremeter *parents* which
+    can be understood as the source(s) of data needed for the respective
+    EvalNode.
+
+    After setting up the tree you can use any *EvalNode* as entry point for
+    doing the operations defined by simply calling the instance. This leads to
+    recursively acquiring data on all parent nodes and then evaluating the
+    called node.
+
+    Every decendant class of this class should implement one (atomic) step
+    or operation in the process of evaluating an experiment. When deriving
+    an *EvalNode* the methods listed below can or should be overriden to provide
+    the behaviour you intend.
+
+    :param name: Name of this instance
+    :type name: string
+
+    :param parents: The parents of this *EvalNode*. Can also be understood as
+        the data sources. If a single *EvalNode* instance is passed, expect a
+        list containing a single item for *parent_data*, else *parent_data*
+        will have the same structure as this parameter with *EvalNodes*
+        exchanged for the return value of :py:meth:`EvalNode.do`
+    :type parents: list or dict or :py:class:`EvalNode`
+
+    :param plot: Decide if the node should execute its :py:meth:`plot` method.
+        If *True* or *False* :py:meth:`plot` is always/never called. If
+        another object is given (preferably *string* but technically anything
+        that can be compared) it defines a plot group. See :py:attr:`plot_on`
+        for further reference.
+    :type plot: bool or object or list
+
+    :param cache: The :py:class:`NodeCache` instance that this *EvalNode*
+        should use for caching. If *None* caching is disabled.
+    :type cache: :py:class:`NodeCache`
+
+    :param ignore_cache: Ignore possibly existing cached data and re-run
+        :py:meth:`EvalNode.do` in any case. **Caution: this only prevents
+        cache reading, not writing.**
+    :type ignore_cache: bool
+
+    :param cache_not_found_action:  What to do if no :py:class:`NodeCache` instance is attached and children did not request data
+        
+        * '*always_regen*': force a regeneration (which in turn forces all 
+          children to regenerate)
+        * '*ignore*': do not generate anything and continue.
+
+    :type cache_not_found_action: string, optional
+
+    :param \*\*kwargs: The kwargs are stored and are passed to the overridden
+        functions and can be used for customisation of a derived class.
+
+    **Derived classes can or should override the following abstract methods:**
+
+     * :py:meth:`do` : Must be overriden. This is the entrypoint for performing the neccessary calculations etc.
+     * :py:meth:`plot` : Optional. Show the data on a specific axis object.
+     * :py:meth:`def_kwargs` : Optional. Set defaults for subclass-specific kwargs.
+     * :py:meth:`common` : Optional. Add values to a dictionary shared across the chain.
+     * :py:meth:`subclass_init` : Optional. Perform initialisation if neccessary. (Do not override :py:meth:`__init__`)
+     * :py:meth:`__contains__` : Optional. As specified in the python object model docs. Return wether a key is contained in the return value of :py:meth:`do`.
+
+    For further information on the methods to override refer to the respective
+    documentation of the methods. Keep in mind that any one of these calls
+    can recieve kwargs other than the ones passed on instance creation. These
+    should be ignored.
+    """
+
     _base_id = count(0)
 
-    def __init__(self, name, parents=None, plot=False, cache=None, ignore_cache=False, **kwargs):
-        """
-        This is the base class for everything in a node chain.
-        Every decendant class of this class should implement one (atomic) step
-        or operation in the process of evaluating an experiment. Then you can
-        put together several instances of EvalNode to form an evaluation chain.
-
-        Decendants should override the following abstract methods:
-         * do: Must be overriden. This is the entrypoint for performing the 
-               neccessary calculations etc.
-         * plot: Optional. Show the data on a specific axis object.
-         * def_kwargs: Optional. Set defaults for subclass-specific kwargs.
-         * common: Optional. Add values to a dictionary shared across the chain.
-         * subclass_init: Optional. Perform initialisation of neccessary. (Do not
-                override __init__()
-         * __contains__: Optional. As specified in the python object model docs.
-                Return wether a key is contained in the return value of do().
-        """
+    def __init__(self, name, parents=None, plot=False, cache=None, ignore_cache=False, cache_not_found_action='always_regen', **kwargs):
         self._id = next(self._instance_ids)
         self._global_id = next(self._base_id)
         self.name = name
@@ -133,38 +196,68 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     @property
     def id(self):
+        """
+        An id unique to this instance only counting
+        instances of the specific class
+        """
+
         return self._id
 
     @property
     def global_id(self):
+        """
+        An id unique to this instance counting every instance of
+        :py:class:`EvalNode` and its derived classes
+        """
+
         return self._global_id
 
     def copy(self, name_suffix, plot=None, ignore_cache=None, last_parents=None, last_kwargs=None, memo=None):#, **kwargs):
         """
-        create a copy of the EvalNode and all of its parents.
+        Create a copy of this :py:class:`EvalNode` and all of its parents
+        recursively.
 
-        If *plot* or *ignore_cache* are not None, the respective values
-        are overriden in the copy for this EvalNode and all of its parents.
+        :param name_suffix: This suffix is appended to the :py:attr:`name` of
+            this instance to create a new name for the copy.
+        :type name_suffix: string
 
-        The top-level EvalNode (having no parents) is created with
-        *last_parents* as parents. Its kwargs are updated with *last_kwargs*
-        where kwargs which are itself dicts are merged into the existing
-        dicts. The **kwargs of the EvalNode instance that is copied is
-        deepcopied, which may lead to unexpected behaviour. (Maybe add:
-        optionally deepcopy or copy)
+        :param plot: if not *None* the value of :py:attr:`plot_on` is overridden
+            in the copy of this :py:class:`EvalNode` and all of its parents'
+            copies. Default: *None*
+        :type plot: bool or object or list, optional
 
-        Other EvalNodes in the chain keep the kwargs used at the time
-        of their creation.
+        :param ignore_cache: if not *None* the value of :py:attr:`ignore_cache`
+            is overridden in the copy of this :py:class:`EvalNode` and all of 
+            its parents' copies. Default: *None*
+        :type plot: bool, optional
 
-        If the same instance of EvalNode occurs multiple times in the
-        evaluation tree, the first occurence is copied and this copy is
-        used on subsequent occurences. This should preserve loops in the
-        tree. This is realized with the memo parameter which should be left
-        default on manual calls to this method.
+        :param last_parents: The top-level :py:class:`EvalNode` instances are
+            created with the value of this parameter as their parents. Default:
+            *None*
+        :type last_parents: list or dict or :py:class:`EvalNode`, optional
+
+        :param last_kwargs: The top-level :py:class:`EvalNode` instances are
+            updated with this parameter where values which are itself dicts
+            are merged into the existing dicts. The \*\*kwargs of the 
+            :py:class:`EvalNode` instance that is copied is deepcopied, which 
+            may lead to unexpected behaviour. (Maybe add: optionally deepcopy 
+            or copy). Other :py:class:`EvalNodes` in the chain keep the kwargs
+            used at the time of their creation. Default: *None* 
+        :type last_kwargs: dict, optional
+
+        :param memo: If the same instance of EvalNode occurs multiple times in the
+            evaluation tree, the first occurence is copied and this copy is
+            used on subsequent occurences. This should preserve loops in the
+            tree. This is realized with the memo parameter which should be left
+            default on manual calls to this method.
+        :type memo: dict, optional
 
         It should be possible to copy multiple nodes having the same parents
         (resulting in to manual copy() calls) if one supplies the same dict
         to memo for both calls. (Start with an empty dict)
+
+        :returns: A copy of this instance
+        :rtype: :py:class:`EvalNode`
         """
         if name_suffix[0] != '_':
             name_suffix = '_' + name_suffix
@@ -217,50 +310,57 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     def __getitem__(self, index):
         """
-        __getitem__ for nodes return a node which in turn 
+        Returns a node which in turn 
         subscripts the return value of this nodes do() call 
         on evaluation. (and returns this subscripted value)
 
         This may be confusing but I found it to be very useful
-        in constructing node chains. It also encourages the use
-        of nodes as if they were their generated/returned values.
+        in constructing node chains. Think of it as using the *EvalNodes*
+        as if they were their generated/returned values.
 
         This also implies that the object returned is kind of
         a "future", only containing actual subscripted data
         when the node chain is run. This also makes the functions
-        __contains__ and __iter__ unavailable to base classes
-        since it is not known to the base class what subclasses'
-        do() call might return.
+        :py:meth:`__contains__` and :py:meth:`__iter__` unavailable to the base
+        class since it is not known to the base class what subclasses'
+        :py:meth:`do` call might return.
 
-        You are encouraged to override __contains__ and/or
-        __iter__ for custom subclasses if senseful return values
-        can be provided. Further information:
-            - https://docs.python.org/3/reference/datamodel.html#emulating-container-types
-            - https://docs.python.org/3/reference/expressions.html#membership-test-details
+        You are encouraged to override :py:meth:`__contains__` for custom 
+        subclasses if senseful return values can be provided. Further information:
 
-        Also notice that NodeGroup overrides this behaviour because
-        the subscription of the do()-call return value is equivalent to
-        subscripting the dictionary of parents of the NodeGroup.
-        Since these two are generally not the same the default
-        behaviour is as stated here and EvalNode.parents can be 
-        subscripted for the other possible outcome.
+        * https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+        * https://docs.python.org/3/reference/expressions.html#membership-test-details
+
+        An alternative way to use subscription of this class would be
+        to return the subscripted :py:attr:`parents` value but since this
+        is much simpler to realize manually than the behaviour outlined
+        above I chose it to be the way it is.
+
+        In fact, NodeGroup overrides this behaviour in exactly this way
+        because both ways of subscription are equivalent here, i.e.
+        the subscription of the :py:meth:`do`-call return value is 
+        equivalent to subscripting the dictionary of parents of the NodeGroup.
+
+        :rtype: :py:class:`SubscriptedNode`
         """
         return SubscriptedNode('_{}_subs_{}'.format(self.name, index), parents=self, subscript=index)
 
     def __contains__(self, item):
         """
         This function always raises an exception. For more
-        information on that read __getitem__()
+        information on that see :py:meth:`__getitem__`
         """
         raise TypeError("Generally, subscripting nodes works by subscripting the return value of do(). Therefore it cannot be known to the base class (EvalNode) if this value contains an item.")
 
     @property
     def parents_iter(self):
         """
-        Returns an iterator that can be handled uniformly
-        for any type of parents (list or dict).
-        For lists, it is enumerate(parents), and for dict
-        it is parents.items()
+        :return: An iterator that can be handled uniformly
+            for any type of parents (list or dict).
+            For lists, it is enumerate(:py:attr:`parents`), and for dict
+            it is :py:attr:`parents`.items()
+
+        :rtype: iterator
         """
         if type(self.parents) is list:
             return enumerate(self.parents)
@@ -283,11 +383,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     def parents_contains(self, key):
         """
-        Returns True of the parents iterator contains an item
-        with the given key.
+        :return: True if the parents iterator contains an item with the given key.
+            For parents stored as list, this is equal to 'key < len(parents)'
+            and for parents stored as dict, this is eqal to 'key in parents'
 
-        For parents stored as list, this is equal to 'key < len(parents)'
-        and for parents stored as dict, this is eqal to 'key in parents'
+        :rtype: bool
         """
         if type(self.parents) is list:
             return key < len(self.parents)
@@ -298,6 +398,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     @property
     def parents(self):
+        """
+        :return: The list or dict of parents of this node
+        :rtype: list or dict
+        """
         return self._parents
 
     @parents.setter
@@ -309,16 +413,17 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         """
         The plot property decides when a node is plotted. There
         are three possibilities:
-         * True or False: The node is always or never plotted 
-         * matplotlib.axes.Axes instance: The node is always plotted
-           on the given Axes instance
-         * object or [object]: Defines a "plot group", i.e. all
-           nodes in the same group can be plotted at will. This means
-           this node is plotted if the same object (or one object 
-           from the list) to which plot is set is passed  to the 
-           __call__() method of the node chain.
 
-        See also: plot_on
+         * *True* or *False*: The node is always or never plotted 
+         * :py:class:`matplotlib.axes.Axes` instance: The node is always plotted
+           on the given *Axes* instance
+         * :py:class:`object` or list of :py:class`object` : Defines a "plot
+           group", i.e. all nodes in the same group can be plotted in one call.
+           This means this node is plotted if the same object (or one object 
+           from the list) to which :py:attr:`plot_on` is set is passed to the 
+           :py:meth:`__call__` method of initial :py:class:`EvalNode`.
+
+        See also: :py:meth:`__init__` parameter *plot*
         """
         if isinstance(self._plot, matplotlib.axes.Axes):
             return self._ax
@@ -336,9 +441,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     def in_plot_group(self, group):
         """
-        Decides wether the node is plotted depending on the
-        parameter passed to __call__.
-        See the plot property for further information.
+        :returns: Wether the node is plotted depending on the *plot_on*
+            parameter passed to __call__. See :py:attr:`plot_on` for further
+            information.
+        :rtype: bool
         """
         if self._plot is True or self._plot is False:
             return self._plot
@@ -356,21 +462,27 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     def __call__(self, ax=None, plot_on=None, memo=None, **kwargs):
         """
-        Run the node and recursively its parents. 
-         * ax: If not None eventually plot nodes on this Axes
-               object.
-         * plot_on: a plot group or a list of plot groups that 
-               should be plotted. See plot_on property for more
-               information. If one of None, True or False,
-               exactly the nodes that are set to True are plotted.
-         * memo: Used to prevent double plotting. Nodes that are
-               in memo are ignored. Double evaluation is prevented
-               by caching results in RAM.
-         * kwargs: All nodes kwargs are joined with this kwargs
-               dict for this call. Watch out because cached nodes
-               are not re-called even if kwargs change.
+        Run the node and recursively its parents and possibly plot the results.
+        :param ax: If not *None* potentially plot nodes on this Axes object
+        :type ax: *None* or :py:class:`matplotlib.axes.Axes`, optional
+        :param plot_on: a plot group or a list of plot groups that 
+            should be plotted. See :py:attr:`plot_on` for more
+            information. If one of *None*, *True* or *False*,
+            exactly the nodes for which :py:attr:`plot_on` are set to
+            *True* are plotted.
+        :type plot_on: see :py:attr:`plot_on`, optional
+        :param memo: Used to prevent double plotting. Nodes that are
+            in memo are ignored. Double evaluation is prevented
+            by caching results in RAM.
+        :type memo: list of :py:class:`EvalNode`
+        :param \*\*kwargs: All nodes kwargs are joined with this kwargs
+            dict for this call. Watch out because cached nodes
+            are not re-called even if kwargs change. (At the moment)
 
-        Returns: the memo list after running all parents.
+        :return: the memo list after running all parents. This may change
+            in the future. Options may be: the data returned by (1) the called node
+            (2) all nodes
+        :rtype: list
         """
         common = {'_kwargs': {}, '_kwargs_by_type': {}, '_kwargs_by_instance': {}, '_colors': {}}
 
@@ -620,6 +732,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         Other overriden methods will see the dict returned by this method
         as kwargs but eventually overriden with the kwargs passed to
         the initial __call__() of the tree.
+
+        Always be aware that unexpected kwargs may be passed to any
+        function, so always include **kwargs in the call signature 
+        even if your node does not use any kwargs or you write them
+        out.
         """
         return kwargs
 
@@ -635,6 +752,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         Using this method is discouraged because customizing
         parent attachment can mess with copy semantics.
+
+        Always be aware that unexpected kwargs may be passed to any
+        function, so always include **kwargs in the call signature 
+        even if your node does not use any kwargs or you write them
+        out.
         """
         # doing this is optional, if subclass_init returns
         # None, this is the default behaviour
@@ -651,6 +773,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         dict or directly modify the parameter *common* given.
 
         Called between do and plot.
+
+        Always be aware that unexpected kwargs may be passed to any
+        function, so always include * **kwargs * in the call signature 
+        even if your node does not use any kwargs or you write them
+        out.
         """
         pass
 
@@ -668,6 +795,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         kwargs are the kwargs that are set at creation time
         potentially overriden with those at call time.
+
+        Always be aware that unexpected kwargs may be passed to any
+        function, so always include **kwargs in the call signature 
+        even if your node does not use any kwargs or you write them
+        out.
         """
         raise NotImplementedError
 

@@ -7,10 +7,11 @@ Welcome to sde-crt's documentation!
 ===================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
    evaluation/index
+   evaluation/old
    libbatch/index
    cython/index 
    tests/index
