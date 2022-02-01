@@ -10,6 +10,7 @@ sys.path.insert(0, 'src/evaluation')
 from pybatch.pybreakpointstate import *
 from evaluation.helpers import *
 from evaluation.experiment import *
+from .cache import FileCache
 from scipy import stats
 
 def kieslinregress(x, y, y_err=None):
@@ -80,7 +81,7 @@ class PointNode(EvalNode):
     """
     def do(self, parent_data, common, end_state=PyBreakpointState.TIME):
         experiment = parent_data['batch']
-        return [p.x for p in experiment.states if p.breakpoint_state == end_state]
+        return np.array([p.x for p in experiment.states if p.breakpoint_state == end_state])
 
 class ValuesNode(EvalNode):
     """
@@ -90,12 +91,20 @@ class ValuesNode(EvalNode):
     Returns:
         list of all values
     """
-    def do(self, parent_data, common, index, confinements=[], end_state=PyBreakpointState.TIME):
+    #def def_kwargs(self, **kwargs):
+    #    kwargs = {
+    #            'confinements': [],
+    #            'end_state': PyBreakpointState.TIME
+    #        } | kwargs
+     
+    #    return kwargs
+
+    def do(self, parent_data, common, index, confinements=[], end_state=PyBreakpointState.TIME, **kwargs):
         points = parent_data['points'] 
         for conf_idx, conf_cond in confinements:
             points = [p for p in points if conf_cond(p[conf_idx])]
             
-        return [p[index] for p in points]
+        return np.array([p[index] for p in points])
 
 
 #class ConfineNode(EvalNode):
@@ -152,13 +161,16 @@ class HistogramNode(EvalNode):
 
         return kwargs
 
-    def common(self, common, **kwargs):
-        if 'color_cycle' in kwargs:
-            color = next(kwargs['color_cycle'])
-        else:
-            color = None
+    #def common(self, common, **kwargs):
+    #    if not 'color' in common:
+    #        return {'color' : None}
 
-        return {'color' : color}
+        #if 'color_cycle' in kwargs:
+        #    color = next(kwargs['color_cycle'])
+        #else:
+        #    color = None
+
+        #return {'color' : color}
 
     def do(self, parent_data, common, **kwargs):
         experiment = parent_data['values']
@@ -207,16 +219,25 @@ class HistogramNode(EvalNode):
     def plot(self, v, ax, common, **kwargs):
         param, histogram, errors = v
 
-        fmt_fields = common['batch_param'] | common['label_fmt_fields']
+        if ValuesNode in common['_kwargs_by_type']:
+            add_fields = common['_kwargs_by_type'][ValuesNode]
+        else:
+            add_fields = {}
+
+        fmt_fields = common['batch_param'] | common['label_fmt_fields'] | add_fields
         label = kwargs['label'].format(**(fmt_fields))
 
         if kwargs['style'] == 'step':
-            ax.step(param, histogram, color=common['color'], label=label, **(kwargs['plot_kwargs']))
+            lines = ax.step(param, histogram, label=label, color=self.get_color(), **kwargs['plot_kwargs'])
         elif kwargs['style'] == 'line':
             shadedata = errors if kwargs['show_errors'] else None
-            ax.plot(param, histogram, color=common['color'], shadedata=shadedata, label=label, **(kwargs['plot_kwargs']))
+            lines = ax.plot(param, histogram, shadedata=shadedata, label=label, color=self.get_color(), **kwargs['plot_kwargs'])
         else:
             raise ValueError("Invalid histogram plot style used. Valid: step, line")
+
+        self.set_color(lines[0].get_color())
+
+        return lines[0]
 
 class PowerlawNode(EvalNode):
     def def_kwargs(self, **kwargs):
@@ -224,7 +245,8 @@ class PowerlawNode(EvalNode):
             'ln_x' : False,
             'label' : "",
             'powerlaw_annotate' : True,
-            'errors' : False
+            'errors' : False,
+            'plot_kwargs': {}
         } | kwargs
 
         return kwargs
@@ -267,6 +289,10 @@ class PowerlawNode(EvalNode):
 
         return np.exp(t), m, np.exp(t) * dt, dm, lims
 
+    def common(self, common, **kwargs):
+        if not 'color' in common:
+            return {'color' : None}
+
     def plot(self, data, ax, common, **kwargs):
         a, q, _, dq, lims = data
         if kwargs['ln_x']:
@@ -279,16 +305,18 @@ class PowerlawNode(EvalNode):
         if kwargs['powerlaw_annotate']:
             label += ' $q={:.2f}\\pm {:.2f}$'.format(q, dq)
 
-        if 'color' in common:
-            color = common['color']
-        else:
-            color = None
-
         x_plot = np.linspace(lims[0][0], lims[0][1], 100)
         y_plot = func(x_plot)
         x_plot = [x for x, y in zip(x_plot, y_plot) if y <= lims[1][1] and y >= lims[1][0]]
         y_plot = [y for y in y_plot if y <= lims[1][1] and y >= lims[1][0]]
-        ax.plot(x_plot, y_plot, label=label, color=color, linestyle='dotted')
+
+        style = dict(linestyle='dotted', color=self.get_color()) | kwargs['plot_kwargs']
+
+        line = ax.plot(x_plot, y_plot, label=label, **style) 
+
+        self.set_color(line[0].get_color())
+
+        return line[0]
 
 
 class CommonParamNode(EvalNode):
@@ -350,7 +378,8 @@ class ScatterNode(EvalNode):
         else:
             bardata = dy
 
-        ax.plot(x, y, bardata=bardata, label=kwargs['label'], lw=1, barlw=0.5, marker='x', capsize=1.0)
+        lines = ax.plot(x, y, bardata=bardata, label=kwargs['label'], lw=1, barlw=0.5, marker='x', capsize=1.0)
+        return lines[0]
 
 class HistogramIntegrateNode(HistogramNode):
     def def_kwargs(self, **kwargs):
@@ -383,4 +412,21 @@ class HistogramIntegrateNode(HistogramNode):
             y_int.append(sum(elem))
 
         return x, y_int, [0] * len(y)
+
+class PointsNodeCache(FileCache):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extension = ".values"
+
+    @staticmethod
+    def _read_file(file):
+        pass
+
+    @staticmethod
+    def _write_file(file, obj):
+        ps = np.array(obj).T[0].T
+
+
+        print(ps)
+
 

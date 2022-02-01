@@ -709,6 +709,127 @@ BatchKruells11::~BatchKruells11(){
     //delete _sintegrator;
 }
 
+
+Eigen::VectorXd kruells_shockaccel2_drift_94_3(const Eigen::VectorXd& x, double Xsh, double a, double b, double k_syn, double q, double Xdiff){
+    Eigen::VectorXd v(2);
+    v(0) = - kruells94_kappa_dep(x(0), Xsh, a, b, q) / Xdiff + kruells94_beta(x(0), Xsh, a, b);
+    v(1) = - (x(1)) * (kruells94_dbetadx(x(0), Xsh, b) / 3 + k_syn * x(1));
+    return v;
+}
+
+// ******************************************   KRUELLS 12 ****************************************** //
+// Kruells 9 with dkappa/dx from eq. (19) = -kappa/Xdiff
+
+BatchKruells12::BatchKruells12(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_3, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"), msa(params, "Xdiff"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = msa(params, "dt");
+    opt.tracked = false;
+
+    // initialize
+    initialize(callbacks, starts, opt);
+}
+
+BatchKruells12::~BatchKruells12(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+Eigen::VectorXd kruells_shockaccel2_drift_94_4(const Eigen::VectorXd& x, double Xsh, double a, double b, double k_syn, double q, double Xdiff){
+    Eigen::VectorXd v(2);
+    v(0) = kruells94_kappa_dep(x(0), Xsh, a, b, q) / Xdiff + kruells94_beta(x(0), Xsh, a, b);
+    v(1) = - (x(1)) * (kruells94_dbetadx(x(0), Xsh, b) / 3 + k_syn * x(1));
+    return v;
+}
+
+// ******************************************   KRUELLS 12 ****************************************** //
+// Kruells 9 with dkappa/dx from eq. (19) = kappa/Xdiff
+
+BatchKruells13::BatchKruells13(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_4, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"), msa(params, "Xdiff"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    PseudoParticleCallbacks callbacks{call_drift, call_diffusion};
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.process = _process;
+    opt.timestep = msa(params, "dt");
+    opt.tracked = false;
+
+    // initialize
+    initialize(callbacks, starts, opt);
+}
+
+BatchKruells13::~BatchKruells13(){
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
 // *************** KRUELLS B1 *************
 // Schlumpfhüte: KruellsBx
 //

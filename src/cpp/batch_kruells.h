@@ -200,6 +200,42 @@ class BatchKruells11 : public PseudoParticleBatch {
 };
 
 /**
+ * BatchKruells9 with dkappa/dx from eq.(19)
+ */
+class BatchKruells12 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells12(std::map<std::string, double> params);
+                ~BatchKruells12();
+};
+
+/**
+ * BatchKruells9 with dkappa/dx from eq.(19) (other sign)
+ */
+class BatchKruells13 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells13(std::map<std::string, double> params);
+                ~BatchKruells13();
+};
+
+/**
  */
 class BatchKruellsB1 : public PseudoParticleBatch {
         private:

@@ -1,5 +1,6 @@
 from collections.abc import MutableMapping
 import proplot as pplt
+import copy
 from .node import NodeGroup
 from .graph import draw_node_chain
 
@@ -46,7 +47,7 @@ class SliceDict(MutableMapping):
 
 
 class NodeFigureFormat:
-    def __init__(self, base=None, subplots=None, fig_format=None, axs_format=None, ax_format=None, legend_kw=None, legends_kw=None):
+    def __init__(self, base=None, subplots=None, fig_format=None, axs_format=None, ax_format=None, legend_kw=None, legends_kw=None, fig_legend_kw=None):
         """
         A set of format options for repeated use in NodeFigure instances.
         
@@ -90,6 +91,11 @@ class NodeFigureFormat:
             else:
                 self.fig_format = fig_format
 
+            if fig_legend_kw is None:
+                self.fig_legend_kw = {}
+            else:
+                self.fig_legend_kw = fig_legend_kw
+
             self.axs_format = NodeFigureFormat._multi_param_parse(axs_format, ax_format)
             self.legends_kw = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
         else:
@@ -103,11 +109,16 @@ class NodeFigureFormat:
             else:
                 self.fig_format = base.fig_format | fig_format
 
+            if fig_legend_kw is None:
+                self.fig_legend_kw = base.fig_legend_kw
+            else:
+                self.fig_legend_kw = base.fig_legend_kw | fig_legend_kw
+
             axs_format_extend = NodeFigureFormat._multi_param_parse(axs_format, ax_format)
             legends_kw_extend = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
             
             self.axs_format = NodeFigureFormat._slice_dict_merge(base.axs_format, axs_format_extend)
-            self.legends_kw_extend = NodeFigureFormat._slice_dict_merge(base.legends_kw, legends_kw_extend)
+            self.legends_kw = NodeFigureFormat._slice_dict_merge(base.legends_kw, legends_kw_extend)
 
     def __getitem__(self, key):
         return self.axs_format[key]
@@ -121,7 +132,8 @@ class NodeFigureFormat:
     @staticmethod
     def _slice_dict_merge(base, extend):
         """
-        Merges extend into base
+        Merges every k:v pair of extend into the respective kb:vb pair in base
+        if the latter exists (vb |= v is used). Else add k:v to base
         """
         new = copy.deepcopy(base)
         for extend_k, extend_d in extend.items():
@@ -136,7 +148,7 @@ class NodeFigureFormat:
     @staticmethod
     def _multi_param_parse(specific, dict_all):
         """
-        Returns a dict (SubplotGrid key -> dict) for any possible
+        Returns a SliceDict (SubplotGrid key -> dict) for any possible
         choise of specific and dict_all.
 
         specific may be either a list in which case it is enumerated
@@ -176,6 +188,10 @@ class NodeFigure:
         self.format(**kwargs)
         self._legends_kw = default_format.legends_kw
 
+        # atm only one legend possible, maybe use list for multiple calls or
+        # use a dict {span : kw} 
+        self._fig_legend_kw = default_format.fig_legend_kw
+
         # _chains contains the node_chains of this figure as keys and
         # a tuple of
         #   * the respective key for SubplotGrid.__getitem() to be executed on
@@ -183,6 +199,13 @@ class NodeFigure:
         #   * a dict with kwargs passed to the node chain __call__ method
         # as values
         self._chains = {}
+
+        # contains SubplotGrid keys as keys and keeps a memo dict as value
+        # for each key. This prevents multiple plotting on the same set
+        # of subfigures if two chain entrypoints have the same parents
+        # at some point. It does not prevent mutltiple plotting on overlapping
+        # slices that are given, this may be implemented in the future
+        self._memos = SliceDict()
 
     def __getitem__(self, key):
         return self.axs[key]
@@ -210,7 +233,7 @@ class NodeFigure:
             if not ran:
                 self._execute_one_chain(chain, key, **kwargs)
 
-    def add(self, node_chain, to=None, instant=False, plot_on=None, memo=None, **kwargs):
+    def add(self, node_chain, to=None, instant=True, plot_on=None, memo=None, **kwargs):
         """
         Add a node_chain to the subplot given by to.
         If to is None (default) the node chain is added
@@ -225,10 +248,16 @@ class NodeFigure:
         is scheduled to execute when calling savefig.
 
         plot_this and memo are passed to the node chain, as well as all
-        other kwargs
+        other kwargs. If memo is None the NodeFigure instance uses a memo
+        list which is the same for every call with the same value of *to*.
         """
         if to is None:
             to = slice(None, None, None)
+
+        if memo is None:
+            if not to in self._memos:
+                self._memos[to] = list()
+            memo = self._memos[to]
 
         node_args = {'plot_on' : plot_on, 'memo' : memo} | kwargs
 
@@ -237,7 +266,7 @@ class NodeFigure:
 
         self._chains[node_chain] = (to, instant, node_args)
 
-    def savefig(self, path, legend_kw=None, legends_kw=None, savefig_args=None):
+    def savefig(self, path, legend_kw=None, legends_kw=None, fig_legend_kw=None, savefig_args=None):
         """
         Save figure to path (using savefig_args as kwargs for savefig)
         after adding a legend where applicable.
@@ -256,12 +285,18 @@ class NodeFigure:
         self.execute()
 
         if not legend_kw is None or not legends_kw is None:
-            legends_kw = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
+            legends_kw_extend = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
+            legends_kw = NodeFigureFormat._slice_dict_merge(self._legends_kw, legends_kw_extend)
         else:
             legends_kw = self._legends_kw
 
         for ax_key, kws in legends_kw.items():
             self._map_key(ax_key, lambda ax: ax.legend(**kws))
+
+        if fig_legend_kw is None:
+            self.fig.legend(**self._fig_legend_kw)
+        else:
+            self.fig.legend(**(self._fig_legend_kw | fig_legend_kw))
             
         self.fig.savefig(path, **savefig_args)
 
@@ -273,8 +308,9 @@ class NodeFigure:
         """
 
         nodes_as_dict = {}
-        for i, (node, prop) in enumerate(self._chains.items()):
-            nodes_as_dict[str(i) + " " + str(prop)] = node
+        for i, (node, (key, state, memo)) in enumerate(self._chains.items()):
+            s = "{} on {}, state {}, len(memo)={}".format(i, key, state, len(memo))
+            nodes_as_dict[s] = node
 
         group = NodeGroup("NodeFigure", parents=nodes_as_dict)
 
@@ -303,7 +339,14 @@ class NodeFigure:
         if key is None:
             key = slice(None, None, None)
 
-        for ax in self[key]:
+        ax_or_grid = self[key]
+
+        try:
+            ax_iter = iter(ax_or_grid)
+        except TypeError:
+            ax_iter = [ax_or_grid]
+
+        for ax in ax_iter:
             if which == 'x':
                 self._pad_x(padding_factor, ax)
             if which == 'y':

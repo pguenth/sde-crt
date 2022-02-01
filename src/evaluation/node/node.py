@@ -6,6 +6,8 @@ from functools import wraps
 from itertools import count
 import matplotlib.axes
 
+logger = logging.getLogger(__name__)
+
 def simple_cache(func):
     """
     Caches a function in RAM so that is only executed once
@@ -21,10 +23,10 @@ def simple_cache(func):
     def decorated(*args, **kwargs):
         self = args[0]
         if not '__c_' + func.__name__ in self.__dict__:
-            logging.debug("simple_cache (RAM): generating data for {} in {}".format(func.__name__, self.name))
+            self._log_debug("[RAM cache] cache empty, calling the requested function {}".format(func.__name__))
             self.__dict__['__c_' + func.__name__] = func(*args, **kwargs)
         else:
-            logging.debug("simple_cache (RAM): using cached data for {} in {}".format(func.__name__, self.name))
+            self._log_debug("[RAM cache] returning cached return value of the requested function {}".format(func.__name__))
 
         return self.__dict__['__c_' + func.__name__]
 
@@ -89,6 +91,13 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         self.cache = cache
         self.ignore_cache = ignore_cache
 
+        if cache_not_found_action == 'always_regen':
+            self._no_cache_regen = True
+        elif cache_not_found_action == 'ignore':
+            self._no_cache_regen = False
+        else:
+            raise ValueError("cache_not_found_action must be either always_regen or ignore")
+
         # does not propagate to children
         # set to true for inherited classes that are
         # only proving mappings etc. to prevent double caching
@@ -97,7 +106,12 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         # PLEASE IMPLEMENT IN _DO(...)
         self.never_cache = False
 
+        self._color = None
+
         self.plot_on = plot
+
+        # store handles from plot
+        self._plot_handles = None
 
         if parents is None:
             parents = {}
@@ -152,6 +166,8 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         (resulting in to manual copy() calls) if one supplies the same dict
         to memo for both calls. (Start with an empty dict)
         """
+        if name_suffix[0] != '_':
+            name_suffix = '_' + name_suffix
         
         if last_parents is None:
             last_parents = {}
@@ -181,7 +197,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
                 # merge items whose values are dicts
                 for k, v in last_kwargs.items():
-                    if k in kwargs_use and isinstance(v, MutableMapping):
+                    if k in kwargs_use and isinstance(v, MutableMapping) and isinstance(kwargs_use[k], MutableMapping):
                         kwargs_use[k] |= v
                     else:
                         kwargs_use[k] = v
@@ -250,6 +266,18 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             return enumerate(self.parents)
         elif type(self.parents) is dict:
             return self.parents.items()
+        else:
+            raise TypeError("parents must be either dict or list")
+
+    def is_parent(self, possible_parent):
+        """
+        :return: Returns if a :py:class:`EvalNode` instance is a parent of this instance
+        :rtype: bool
+        """
+        if type(self.parents) is list:
+            return possible_parent in self.parents
+        elif type(self.parents) is dict:
+            return possible_parent in self.parents.values()
         else:
             raise TypeError("parents must be either dict or list")
 
@@ -344,7 +372,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         Returns: the memo list after running all parents.
         """
-        common = {}
+        common = {'_kwargs': {}, '_kwargs_by_type': {}, '_kwargs_by_instance': {}, '_colors': {}}
 
         memo = [] if memo is None else memo
 
@@ -356,7 +384,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         """
         Set kwargs of this instance.
         """
-        self.ext = self.def_kwargs(self.ext | kwargs)
+        self.ext = self.def_kwargs(**(self.ext | kwargs))
 
     def get_kwargs(self):
         """
@@ -364,24 +392,43 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         To modify them it is better to use set()
         """
         return self.ext
+    
+    def _log(self, level, message):
+        logger.log(level, "[@node {}] {}".format(self.name, message))
+
+    def _log_debug(self, message):
+        self._log(logging.DEBUG, message)
+
+    def _log_info(self, message):
+        self._log(logging.INFO, message)
+
+    def _log_warning(self, message):
+        self._log(logging.WARNING, message)
 
     # get data, either from cache or by regenerating
     # if regenerated and a cache is attached to the 
     # eval node, the data is stored
     @simple_cache
     def _generate_v(self, common, kwargs):
+        self._log_debug("Executing .do() to regenerate data")
         v = self.do(self._parent_data, common, **(self.ext | kwargs))
         if not self.cache is None:
+            self._log_debug("Caching generated data")
             self.cache.store(self.name, v)
 
         return v
 
     @simple_cache
     def _cacheload_v(self):
+        self._log_debug("Loading data from cache")
         v = self.cache.load(self.name)
         return v
 
     def _update_common(self, common, kwargs):
+        common['_kwargs'].update({self.name: (self.ext | kwargs)})
+        common['_kwargs_by_type'].update({type(self): (self.ext | kwargs)})
+        common['_kwargs_by_instance'].update({self: (self.ext | kwargs)})
+
         common_add = self.common(common, **(self.ext | kwargs))
         if not common_add is None:
             common.update(common_add)
@@ -389,12 +436,26 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     def _do(self, ax, plot_group, need_data, common, memo, kwargs):
         # check if a cache exists and if we should use it
         # or if we need data from our parents for regeneration
-        if self.cache is None or self.ignore_cache or not self.cache.exists(self.name):
+        if self.cache is None:
+            if self._no_cache_regen: 
+                self._log_debug("Needs data because no NodeCache is attached")
+                this_need_data = True
+            else:
+                self._log_debug("Does not need data")
+                this_need_data = False
+        elif self.ignore_cache:
+            self._log_debug("Needs data because cache should be ignored")
+            this_need_data = True
+        elif not self.cache.exists(self.name) and self._no_cache_regen:
+            self._log_debug("Needs data because no cached data exists")
             this_need_data = True
         else:
+            self._log_debug("Does not need data")
             this_need_data = False
 
         self._update_common(common, kwargs)
+
+        self._log_debug("Traversing the tree upwards")
 
         # request data from parents using this info
         must_fill = False # track if any parents return data (not None)
@@ -409,26 +470,29 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             # we force those to return us data
             # if there is no cache, we will always land here
             # because we requested data from all parents (this_need_data == True in this case)
+            self._log_debug("Some parents returned data, so we assume regeneration is neccessary and traverse the tree a second time to get all data")
             for k, p in self.parents_iter:
                 if self._parent_data[k] is None:
                     self._parent_data[k] = p._do(None, plot_group, True, common, memo, kwargs)
+
+            self._log_debug("Requesting regeneration or RAM cache retrieval of data")
             v = self._generate_v(common, kwargs)
-            logging.debug("Evaluation chain: _do at {} chose to regenerate the data (1)".format(self.name))
         elif len(self.parents) == 0 and this_need_data:
             # if there are no parents but data is needed
+            self._log_debug("This node has no parents but it needs data")
+            self._log_debug("Requesting regeneration or RAM cache retrieval of data")
             v = self._generate_v(common, kwargs)
-            logging.debug("Evaluation chain: _do at {} chose to regenerate the data (2)".format(self.name))
         elif need_data:
             # all parents returned None, this means there are no updates
             # in all our ancestors. Since the child calling us needs data
             # we can load the cache
+            self._log_debug("Request loading data from cache or RAM cache")
             v = self._cacheload_v()
-            logging.debug("Evaluation chain: _do at {} chose to use the cached data".format(self.name))
         else:
             # all parents returned None and the child doesn't need data
             # so we return None to tell it that we don't have updates
             v = None
-            logging.debug("Evaluation chain: _do at {} chose to do nothing".format(self.name))
+            self._log_debug("No data retrieval neccessary from request or parents")
 
         if self.in_plot_group(plot_group) and not self in memo:
             memo.append(self)
@@ -436,34 +500,118 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             if v is None:
                 # if there is need for a plot, but no data available at this point
                 # we can use the cache for plotting since there are no updates
-                logging.debug("Evaluation chain: _do at {} chose to load the cached data anyways for plotting".format(self.name))
+                self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
                 v = self._cacheload_v()
             else:
                 # plot with available data
-                logging.debug("Evaluation chain: _do at {} plots with the already available data".format(self.name))
+                self._log_debug("Plot the node")
 
-            self.plot(v, plot_on, common, **(self.ext | kwargs))
+            self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
+
+            if not (type(self._plot_handles) is list or self._plot_handles is None):
+                self._plot_handles = [self._plot_handles]
 
         return v
 
     def search_parent(self, starts_with):
         """
+        Search the parents recursively for any nodes
+        whose name starts with the given string
+        and return the first match found
+        """
+        for _, p in self.parents_iter:
+            found_parent = p.search_tree(starts_with) 
+            if not found_parent is None:
+                return found_parent
+
+        return None
+
+    def search_tree(self, starts_with):
+        """
         Search the chain of nodes for any nodes
         whose name starts with the given string
+        and return the first match found
         """
         if str(self.name).startswith(starts_with):
             return self
 
         for _, p in self.parents_iter:
-            if str(p.name).startswith(starts_with):
-                return p
-
-        for _, p in self.parents_iter:
-            found_parent = p.search_parent(starts_with) 
+            found_parent = p.search_tree(starts_with) 
             if not found_parent is None:
                 return found_parent
 
         return None
+
+    def _search_tree_all(self, starts_with, l):
+        if str(self.name).startswith(starts_with):
+            if not self in l:
+                l.append(self)
+
+        for _, p in self.parents_iter:
+            p._search_tree_all(starts_with, l) 
+
+    def search_tree_all(self, starts_with):
+        """
+        Search the chain for any nodes whose name starts with the given
+        string and return all matches.
+        """
+        l = []
+        self._search_parent_all(starts_with, l)
+        return l
+
+    def search_parents_all(self, starts_with):
+        """
+        Search the parents recursively for any nodes whose name starts with the given
+        string and return all matches.
+        """
+        l = []
+        for _, p in self.parents_iter:
+            l += p.search_tree_all(starts_with)
+        return l
+
+    def is_descendant_of(self, possible_parent):
+        """
+        Return True if this instance has *possible_parent* anywhere in their
+        parent chains
+        """
+        if self.is_parent(possible_parent):
+            return True
+
+        for _, p in self.parents_iter:
+            if p.is_descendant_of(possible_parent):
+                return True
+
+    def map_tree(self, map_callback, return_values=None):
+        """
+        Execute *map_callback* for every node in this tree.
+        Starting with self. Return a dict {EvalNode -> object}
+        containing the return values of every call.
+        """
+        if return_values is None:
+            return_values = {}
+
+        return_values[self] = map_callback(self)
+        for _, p in self.parents_iter:
+            p.map_tree(map_callback, return_values)
+
+        return return_values
+
+    @property
+    def handles(self):
+        return self._plot_handles
+
+    @property
+    def handles_complete_tree(self):
+        m = self.map_tree(lambda n: n.handles)
+        print(m)
+        
+        l = []
+        for x in m.values():
+            if not x is None:
+                l += x
+
+        return l
+
 
     def def_kwargs(self, **kwargs):
         """
@@ -528,8 +676,58 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         Override this method if this eval node can plot something.
         It is called if requested with the return value from do(..)
         and an axes object to plot on.
+
+        Should return a list of handles that this Node created.
+
+        Always be aware that unexpected kwargs may be passed to any
+        function, so always include **kwargs in the call signature 
+        even if your node does not use any kwargs or you write them
+        out.
         """
         raise NotImplementedError
+
+    #def get_color(self, common):
+    #    """
+    #    Bodgy way to synchronize colors. Use only in conjunction with set_color.
+
+    #    common['_colors'] stores which node used which color and if a node
+    #    wants to sync its color, get_color() searches for nodes in this store
+    #    which are parents of the node and returns the color of this node.
+    #    """
+    #    for node, color in common['_colors'].items():
+    #        if self.is_descendant_of(node):
+    #            return color
+        
+    #    return None
+    #def set_color(self, color, common):
+    #    """
+    #    See get_color()
+    #    """
+    #    common['_colors'][self] = color
+
+    def get_color(self):
+        """
+        New bodgy way to synchronise colors. Use only in conjunction with
+        set_color.
+
+        Colors are stored in a instance variable per node and the color of the
+        first parent found that has this instance variable set is returned.
+
+        If no color is found, None is returned
+        """
+        if not self._color is None:
+            return self._color
+
+        for _, p in self.parents_iter:
+            return p.get_color()
+
+        return None
+
+    def set_color(self, color):
+        """
+        See get_color()
+        """
+        self._color = color
 
 class SubscriptedNode(EvalNode):
     def subclass_init(self, parents, **kwargs):

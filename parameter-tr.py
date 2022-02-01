@@ -57,6 +57,7 @@ for var_name, var in params.items():
     for v in var.values:
         nfig = NodeFigure(formats.doublehist)
         nfig.add(pls.chains[v]['histosetx'], 0, plot_on='spectra')
+        nfig.add(pls.chains[v]['histosetp'], 1, plot_on='spectra')
         nfig.add(pls.chains[v]['powerlaw'], 1, plot_on='spectra')
         nfig.savefig("figures/{}_{}={}.pdf".format(name, var_name, v))
 
