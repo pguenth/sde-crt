@@ -246,7 +246,8 @@ class PowerlawNode(EvalNode):
             'label' : "",
             'powerlaw_annotate' : True,
             'errors' : False,
-            'plot_kwargs': {}
+            'plot_kwargs': {},
+            'negative' : False
         } | kwargs
 
         return kwargs
@@ -286,6 +287,9 @@ class PowerlawNode(EvalNode):
             t = result.intercept
             dm = result.stderr
             dt = result.intercept_stderr
+
+        if kwargs['negative']:
+            m *= -1
 
         return np.exp(t), m, np.exp(t) * dt, dm, lims
 

@@ -18,6 +18,7 @@ class TrajectoryBreakpoint;
 class TrajectoryBoundary;
 class TrajectoryIntegrator;
 
+// maybe make those to accept SpaceTimePoint instead of vector to enable time-dep behaviour
 typedef std::function<Eigen::VectorXd(Eigen::VectorXd&)> drift_t;
 typedef std::function<Eigen::MatrixXd(Eigen::VectorXd&)> diffusion_t;
 //typedef Eigen::VectorXd (*drift_t)(const Eigen::VectorXd&);
@@ -50,6 +51,7 @@ typedef struct PseudoParticleOptions {
 } PseudoParticleOptions;
 
 typedef struct PseudoParticleCallbacks {
+    // maybe add timestep callback here for variable time-steps
     drift_t drift;
     diffusion_t diffusion;
 

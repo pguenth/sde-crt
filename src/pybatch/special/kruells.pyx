@@ -228,3 +228,18 @@ cdef class PyBatchKruells13(PyPseudoParticleBatch):
             tmp = <BatchKruells13 *>self._batch;
             del tmp
             self._batch = NULL
+
+cdef class PyBatchAchterberg1(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg1(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg1 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg1 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg1 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg1 *>self._batch;
+            del tmp
+            self._batch = NULL

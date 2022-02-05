@@ -269,4 +269,21 @@ class BatchKruellsC1 : public PseudoParticleBatch {
                 BatchKruellsC1(std::map<std::string, double> params);
                 ~BatchKruellsC1();
 };
+/**
+ */
+class BatchAchterberg1 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg1(std::map<std::string, double> params);
+                ~BatchAchterberg1();
+};
 #endif

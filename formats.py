@@ -4,6 +4,12 @@ sys.path.insert(0, 'src/evaluation')
 from node.nodefigure import NodeFigureFormat
 import proplot as pplt
 
+momentumhist = NodeFigureFormat(
+                subplots=None,
+                fig_format={'xscale': 'log', 'yscale': 'log', 'ylabel':'particle number density', 'yformatter': pplt.SciFormatter(), 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'},
+                legend_kw={'loc': 'r', 'ncols': 1}
+        )
+
 doublehist = NodeFigureFormat(
                 subplots={'ncols': 2},
                 fig_format={'yscale': 'log', 'ylabel':'particle number density', 'yformatter': pplt.SciFormatter()},

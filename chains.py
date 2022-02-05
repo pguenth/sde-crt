@@ -1,10 +1,15 @@
 from node.special import *
 from node.node import *
 
-def generate_timerange_set(param, times):
+def generate_timerange_set(param, times, constant_particle_count=None):
     l = {}
     for t in times:
-        l['T=' + str(t)] = {'param': param | {'Tmax' : t}}
+        if not constant_particle_count is None:
+            changed_param = {'Tmax' : t, 't_inj' : t / constant_particle_count}
+        else:
+            changed_param = {'Tmax' : t}
+
+        l['T=' + str(t)] = {'param': param | changed_param}
 
     return l
 
@@ -28,7 +33,7 @@ def param_from_numerical(dx_adv, delta, sigma, beta_s, r, n_timesteps):
     param_num = {'dx_adv' : dx_adv, 'dx_diff' : dx_diff, 'delta' : delta, 'sigma' : sigma}
     return param_sim, param_num
 
-def get_chain_parameter_series(batch_cls, cache, param_sets, confine_x, bin_count=30, histo_opts={}, plot_on=True):
+def get_chain_parameter_series(batch_cls, cache, param_sets, confine_x, bin_count=30, histo_opts={}, plot_on=True, powerlaws=False):
     batch = BatchNode('batch', batch_cls = batch_cls, cache=cache, ignore_cache=False)
     points = PointNode('points', {'batch' : batch}, cache=cache, ignore_cache=False)
 
@@ -46,9 +51,14 @@ def get_chain_parameter_series(batch_cls, cache, param_sets, confine_x, bin_coun
     histogramp = HistogramNode('histop', {'values' : valuesp}, log_bins=True, normalize='density', **histo_opts)
 
     histosetx = copy_to_group('groupx', histogramx, last_parents=points_range)
-    histosetp = copy_to_group('groupp', histogramp, last_parents=points_range)
 
-    return histosetx, histosetp
+    if powerlaws:
+        powerlaw = PowerlawNode('pl', {'dataset' : histogramp }, plot=plot_on)
+        powerlawset = copy_to_group('grouppl', powerlaw, last_parents=points_range)
+        return histosetx, powerlawset
+    else:
+        histosetp = copy_to_group('groupp', histogramp, last_parents=points_range)
+        return histosetx, histosetp
 
 def get_chain_times_maxpl(batch_cls, cache, param, times, confine_x=np.inf, bin_count=30, histo_opts={}, plot_on=True):
     param_sets = generate_timerange_set(param, times)
@@ -74,7 +84,7 @@ def get_chain_single(batch_cls, cache, confine_x, bin_count=30, histo_opts={}, p
 
     return histogramx, histogramp
 
-def get_chain_powerlaw_datapoint(batch_cls, cache, confine_x, xparam_callback, histo_opts={}):
+def get_chain_powerlaw_datapoint(batch_cls, cache, confine_x, xparam_callback, histo_opts={}, negate_index=False):
     """
     """
     cycle = ColorCycle(['red', 'green', 'blue', 'yellow', 'black', 'violet'])
@@ -82,7 +92,7 @@ def get_chain_powerlaw_datapoint(batch_cls, cache, confine_x, xparam_callback, h
     histogramx, histogramp = get_chain_single(batch_cls, cache, confine_x, histo_opts={'color_cycle': cycle} | histo_opts)
     histogramp.plot_on = 'spectra'
 
-    powerlaw = PowerlawNode('pl', {'dataset' : histogramp }, plot='spectra', color_cycle=cycle)
+    powerlaw = PowerlawNode('pl', {'dataset' : histogramp }, plot='spectra', color_cycle=cycle, negative=negate_index)
 
     xparam_get = CommonCallbackNode('xparam_get', parents=histogramp, callback=xparam_callback)
 

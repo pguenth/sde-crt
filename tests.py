@@ -736,10 +736,10 @@ def kruells12():
     param['Xdiff'] = 4 * param_num['dx_diff']
     
     cache = PickleNodeCache(cachedir, name)
-    pcache = PointsNodeCache(cachedir, name)
+    #pcache = PointsNodeCache(cachedir, name)
     histogramx, histogramp = chains.get_chain_single(PyBatchKruells12, cache, param=param, confine_x=1, bin_count=30)
-    histogramx.search_parent('points').cache = pcache
-    histogramx.search_parent('points').ignore_cache = True
+    #histogramx.search_parent('points').cache = pcache
+    #histogramx.search_parent('points').ignore_cache = True
     powerlaw = PowerlawNode('pl', {'dataset' : histogramp }, plot=True)
 
     for v in histogramx.search_parent_all('valuesx') + histogramp.search_parent_all('valuesp'):
@@ -945,6 +945,161 @@ def kruellsC1a():
     #ylim=((None, None), (10**-3, 10**0)),
     nfig.savefig(figdir + '/' + name + '.pdf')
 
+"""
+Achterberg 2011 model where D = q * V (in Kruells terms kappa = q * beta)
+"""
+def achterberg1():
+    name = inspect.currentframe().f_code.co_name
+    param_sets = {'A': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 12,
+                          'Ls' : 0.032,
+                          't_inj' : 2,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 1000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'A'
+                        }},
+                  'B': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 5,
+                          'Ls' : 0.02,
+                          't_inj' : 2,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 1000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'B'
+                        }},
+                  'C': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 20,
+                          'Ls' : 0.04,
+                          't_inj' : 2,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 1000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'C'
+                        }},
+                  'C2': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 20,
+                          'Ls' : 0.04,
+                          't_inj' : 2,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 10000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'C2'
+                        }},
+                  'D': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 0.2,
+                          'Ls' : 0.004,
+                          't_inj' : 2,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 1000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'D'
+                        }},
+                  'D2': {'param' : { 
+                          'V' : 0.02,
+                          'dt' : 0.01,
+                          'r' : 4,
+                          'q' : 0.2,
+                          'Ls' : 0.004,
+                          't_inj' : 20,
+                          'x0' : 0,
+                          'y0' : 1,
+                          'Tmax' : 10000
+                        },
+                        'label_fmt_fields' : {
+                          'name' : 'D'
+                        }}
+            }
+
+    cache = PickleNodeCache(cachedir, name)
+    histosetx, powerlaws = chains.get_chain_parameter_series(
+        PyBatchAchterberg1,
+        cache,
+        param_sets=param_sets,
+        confine_x=10,
+        bin_count=30,
+        powerlaws=True,
+        histo_opts={'label' : '{name}'}
+    )
+
+    #for v in histogramx.search_parent_all('valuesx') + histogramp.search_parent_all('valuesp'):
+    #    v.ignore_cache = True
+
+    nfig = NodeFigure(formats.doublehist)
+    nfig.add(histosetx, 0)
+    nfig.add(powerlaws, 1)
+    nfig.savefig(figdir + '/' + name + '.pdf')
+
+"""
+Achterberg 2011 model where D = q * V (in Kruells terms kappa = q * beta)
+Timeseries D param set from achterberg1
+"""
+def achterberg2():
+    name = inspect.currentframe().f_code.co_name
+    param = {'V' : 0.02,
+                  'dt' : 0.01,
+                  'r' : 4,
+                  'q' : 0.2,
+                  'Ls' : 0.004,
+                  't_inj' : 20,
+                  'x0' : 0,
+                  'y0' : 1
+                 }
+
+    times = [500, 5000, 10000]
+    param_sets = chains.generate_timerange_set(param, times, constant_particle_count=500)
+    cache = PickleNodeCache(cachedir, name)
+    histosetx, powerlaws = chains.get_chain_parameter_series(
+        PyBatchAchterberg1,
+        cache,
+        param_sets=param_sets,
+        confine_x=50,
+        bin_count=30,
+        powerlaws=True,
+        histo_opts={'label' : '$T_\\textrm{{max}}={Tmax}$'}
+    )
+
+    for v in histosetx.search_parents_all('valuesx') + powerlaws.search_parents_all('valuesp'):
+        v.ignore_cache = True
+
+    nfig = NodeFigure(formats.doublehist)
+    nfig.add(histosetx, 0)
+    nfig.add(powerlaws, 1)
+    nfig.savefig(figdir + '/' + name + '.pdf')
+
+    nfig = NodeFigure(formats.momentumhist, title='$L_\\textrm{diff} = \\frac{D}{V} = 0.2 = \\textrm{const.}$\\\\(Achterberg/Schure Fig. 2, one datapoint $\\epsilon = 0.02$)')
+    for v in powerlaws.search_parents_all('histop'):
+        v.set(plot_kwargs={'alpha': 0.5})
+    nfig.add(powerlaws, 0)
+    nfig.savefig(figdir + '/' + name + '-momentum.pdf')
+
+
+
 """ ***************** """
 """ Run experiment(s) """
 if __name__ == '__main__':
@@ -977,5 +1132,7 @@ if __name__ == '__main__':
 
     #test_kruellsC1a()
     #kruells12ts()
-    kruells12()
+    #kruells12()
     #kruells13ts()
+
+    achterberg2()

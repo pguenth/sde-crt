@@ -625,6 +625,24 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         return v
 
+    def map_parents(self, callback):
+        """
+        Executes callback for every parent of this instance
+        
+        :param callback: The :py:class:`Callable` to be executed
+        :type callback: :py:class:`Callable` (:py:class:`EvalNode`) -> object
+
+        :return: object with structure like :py:attr:`parents` but the nodes
+            replaced with the objects returned by *callback*
+        :rtype: same as :py:attr:`parents`
+        """
+        if type(self.parents) is list:
+            return [callback(n) for n in self.parents]
+        elif type(self.parents) is dict:
+            return {k : callback(n) for k, n in self.parents.items()}
+        else:
+            raise TypeError("parents must be either dict or list")
+
     def search_parent(self, starts_with):
         """
         Search the parents recursively for any nodes
@@ -668,7 +686,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         string and return all matches.
         """
         l = []
-        self._search_parent_all(starts_with, l)
+        self._search_tree_all(starts_with, l)
         return l
 
     def search_parents_all(self, starts_with):
@@ -693,18 +711,36 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             if p.is_descendant_of(possible_parent):
                 return True
 
-    def map_tree(self, map_callback, return_values=None):
+    def map_tree(self, map_callback, starts_with=None, return_values=None):
         """
-        Execute *map_callback* for every node in this tree.
-        Starting with self. Return a dict {EvalNode -> object}
-        containing the return values of every call.
+        Execute *map_callback* for every node in this tree or for all nodes
+        whose name starts with the given string, starting with self.
+        
+        :param map_callback: The callable to execute. The only argument passed is
+            the :py:class:`EvalNode` instance in question.
+        :type map_callback: :py:class:`Callable` (EvalNode) -> object
+
+        :param starts_with: If None run the callback for every :py:class:`EvalNode`
+            in the tree. If not None run callback only for :py:class:`EvalNode`
+            instances whose name start with *starts_with*. Default: *None*
+        :type starts_with: :py:class:`str` or *None*, optional
+
+        :param return_values: The *dict* for collecting the return values in
+            the recursive calls. Should be left at the default value for 
+            normal usage.
+        :type return_values: :py:class:`dict` or *None*, optional
+
+        :return: the return values of every call.
+        :rtype: dict {EvalNode -> object} 
         """
         if return_values is None:
             return_values = {}
 
-        return_values[self] = map_callback(self)
+        if starts_with is None or str(self.name).startswith(starts_with):
+            return_values[self] = map_callback(self)
+
         for _, p in self.parents_iter:
-            p.map_tree(map_callback, return_values)
+            p.map_tree(map_callback, starts_with, return_values)
 
         return return_values
 

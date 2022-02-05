@@ -91,10 +91,7 @@ class NodeFigureFormat:
             else:
                 self.fig_format = fig_format
 
-            if fig_legend_kw is None:
-                self.fig_legend_kw = {}
-            else:
-                self.fig_legend_kw = fig_legend_kw
+            self.fig_legend_kw = fig_legend_kw
 
             self.axs_format = NodeFigureFormat._multi_param_parse(axs_format, ax_format)
             self.legends_kw = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
@@ -111,6 +108,8 @@ class NodeFigureFormat:
 
             if fig_legend_kw is None:
                 self.fig_legend_kw = base.fig_legend_kw
+            elif base.fig_legend_kw is None:
+                self.fig_legend_kw = fig_legend_kw
             else:
                 self.fig_legend_kw = base.fig_legend_kw | fig_legend_kw
 
@@ -137,7 +136,9 @@ class NodeFigureFormat:
         """
         new = copy.deepcopy(base)
         for extend_k, extend_d in extend.items():
-            if extend_k in new:
+            if extend_d is None:
+                del new[extend_k]
+            elif extend_k in new:
                 new[extend_k] |= extend_d
             else:
                 new[extend_k] = extend_d
@@ -291,10 +292,12 @@ class NodeFigure:
             legends_kw = self._legends_kw
 
         for ax_key, kws in legends_kw.items():
-            self._map_key(ax_key, lambda ax: ax.legend(**kws))
+            if not kws is None:
+                self._map_key(ax_key, lambda ax: ax.legend(**kws))
 
         if fig_legend_kw is None:
-            self.fig.legend(**self._fig_legend_kw)
+            if not self._fig_legend_kw is None:
+                self.fig.legend(**self._fig_legend_kw)
         else:
             self.fig.legend(**(self._fig_legend_kw | fig_legend_kw))
             

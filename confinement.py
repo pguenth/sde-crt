@@ -56,13 +56,13 @@ xparam_get = CommonCallbackNode('xparam_get', parents=histogramp, callback=xpara
 datapoint_chain = NodeGroup('datapoint_chain', {'x' : xparam_get, 'y': powerlaw[1], 'dy' : powerlaw[3]})
 dp_group = NodeGroup('group', {'datapoint' : datapoint_chain})
 
-var = PowerlawSeriesVariable('x_\\textrm{conf}', 'xc', [0.01, 0.05, 0.1, 0.3, 0.5, 2, 5, 10])
-var = PowerlawSeriesVariable('x_\\textrm{conf}', 'xc', [0.002, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 2, 5, 10, 50])
+var = PowerlawSeriesVariable('X_\\textrm{c}', 'xc', [0.01, 0.05, 0.1, 0.3, 0.5, 2, 5, 10])
+var = PowerlawSeriesVariable('X_\\textrm{c}', 'xc', [0.002, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 2, 5, 10, 50])
 
 pls = PowerlawSeries(dp_group, var, cb, last_parents={'points' : points})
 plgroup = NodeGroup('plgroup', [n.search_parent('pl') for n in pls.chains.values()])
 
-nfmt = NodeFigureFormat(base=formats.histsandpowerlaw, fig_legend_kw={'loc': 'b', 'ncols': 6, 'order': 'F'}, axs_format={2: dict(xlabel='$x_\\textrm{conf}$', ylabel='Powerlaw index $s$')})
+nfmt = NodeFigureFormat(base=formats.histsandpowerlaw, fig_legend_kw={'loc': 'b', 'ncols': 6, 'order': 'F'}, axs_format={2: dict(xlabel='$X_\\textrm{c}$', ylabel='Powerlaw index $s$')})
 nfmt.legends_kw = {0: {}, 2: {}}
 nfig = NodeFigure(nfmt)
 nfig.format(suptitle='Influence of the confinement of particles on the powerlaw index')
