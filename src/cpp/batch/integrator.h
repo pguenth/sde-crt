@@ -5,7 +5,7 @@
 #include <Eigen/Core>
 #include "pseudoparticlestate.h"
 
-class PseudoParticleState;
+class SpaceTimePoint;
 
 // used to integrate properties of the particle along the trajectory
 // R is the type of the integration result
@@ -29,7 +29,7 @@ class LinearIntegrator : public TrajectoryIntegrator {
 //template <class R>
 class TrajectoryLiveIntegrator {
     public:
-        virtual void integrate(const PseudoParticleState& particle_state, double timestep) = 0;
+        virtual void integrate(const SpaceTimePoint& p, double timestep) = 0;
         virtual double value() const = 0;
         virtual TrajectoryLiveIntegrator* clone() const = 0;
 };
@@ -52,7 +52,7 @@ class LinearLiveIntegrator : public TrajectoryLiveIntegratorB<LinearLiveIntegrat
 
     public:
         LinearLiveIntegrator(std::function<double(const Eigen::VectorXd&)> callback);
-        void integrate(const PseudoParticleState& particle_state, double timestep);
+        void integrate(const SpaceTimePoint& p, double timestep);
         double value() const;
 
 

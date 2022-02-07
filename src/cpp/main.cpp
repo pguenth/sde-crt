@@ -1,5 +1,4 @@
 #include <iostream>
-#include "batch_sourcetest.h"
 #include "batch/pseudoparticlestate.h"
 #include "batch/breakpointstate.h"
 #include <vector>

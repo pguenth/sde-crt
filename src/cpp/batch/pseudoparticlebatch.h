@@ -15,14 +15,13 @@ class PseudoParticleBatch {
         std::vector<PseudoParticle> _particles;
 
         PseudoParticleOptions _options;
-        PseudoParticleCallbacks _callbacks;
 
         int _finished_count;
 
         /**
          * construct creates all particles and stores/initializes the member variables
          */
-        void _construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
+        void _construct(std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
 
         void _one_step_all();
         bool _run_one(int index);
@@ -44,7 +43,7 @@ class PseudoParticleBatch {
          * @param start Starting point of all pseudo particles
          * @param options
          */
-        void initialize(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options);
+        void initialize(int N, SpaceTimePoint start, PseudoParticleOptions options);
 
         /**
          * @see initialize()
@@ -52,14 +51,14 @@ class PseudoParticleBatch {
          * @param starts Vector of starting points for the pseudo particles. For every given element, one pseudo particle is created
          * @param options
          */
-        void initialize(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
+        void initialize(std::vector<SpaceTimePoint> starts, PseudoParticleOptions options);
 
     public:
         PseudoParticleBatch();
-        PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options);
-        PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options);
-        PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options);
-        PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options);
+        PseudoParticleBatch(int N, SpaceTimePoint start, PseudoParticleOptions options);
+        PseudoParticleBatch(int N, double t0, Eigen::VectorXd x0, PseudoParticleOptions options);
+        //PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options);
+        //PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options);
 
         //~PseudoParticleBatch();
         //PseudoParticleBatch(const PseudoParticleBatch&);

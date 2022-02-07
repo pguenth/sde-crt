@@ -20,6 +20,10 @@ Eigen::MatrixXd sourcetest_diffusion(const Eigen::VectorXd& x){
     return v;
 }
 
+double ts_const(const SpaceTimePoint& p, double dt){
+    return dt;
+}
+
 double integrator_cb(const Eigen::VectorXd& x){
     return 0.01 * x(0);
 }
@@ -43,7 +47,8 @@ BatchSourcetest::BatchSourcetest(std::map<std::string, double> params){
 
     // callbacks
     // not sure if &function is better
-    PseudoParticleCallbacks callbacks{sourcetest_drift, sourcetest_diffusion};
+    auto ts = std::bind(ts_const, _1, 0.005);
+    _scheme = new EulerScheme(sourcetest_drift, sourcetest_diffusion, ts, _process);
 
     // starting point
     Eigen::VectorXd start_x(1);
@@ -57,15 +62,15 @@ BatchSourcetest::BatchSourcetest(std::map<std::string, double> params){
     opt.breakpoints.push_back(_slimit);
     
     opt.add_integrator(liveintegrator);
-    opt.process = _process;
     opt.tracked = false;
-    opt.timestep = 0.005;
+    opt.scheme = _scheme;
 
     // initialize
-    initialize(params["N"], callbacks, start, opt);
+    initialize(params["N"], start, opt);
 }
 
 BatchSourcetest::~BatchSourcetest(){
+    delete _scheme;
     delete _process;
     delete _tlimit;
     delete _slimit;

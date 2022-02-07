@@ -14,7 +14,7 @@ class PseudoParticleState;
 // for mirroring boundaries etc. see TrajectoryBoundary
 class TrajectoryBreakpoint {
     public:
-        virtual BreakpointState check(const PseudoParticleState& particle_state) const = 0;
+        virtual BreakpointState check(const SpaceTimePoint& p) const = 0;
 
         // estimates the maximum number of steps the pseudo particle might need
         // to reach this breakpoint (if the breakpoint is the only thing in the system)
@@ -29,7 +29,7 @@ class BreakpointTimelimit : public TrajectoryBreakpoint {
 
     public:
         BreakpointTimelimit(double T);
-        BreakpointState check(const PseudoParticleState& particle_state) const;
+        BreakpointState check(const SpaceTimePoint& p) const;
         int estimate_max_steps(const double timestep, const SpaceTimePoint& start) const;
 };
 
@@ -42,7 +42,7 @@ class BreakpointSpatialIndex : public TrajectoryBreakpoint {
 
     public:
         BreakpointSpatialIndex(int index, double x_min, double x_max);
-        BreakpointState check(const PseudoParticleState& particle_state) const;
+        BreakpointState check(const SpaceTimePoint& p) const;
         int estimate_max_steps(const double timestep, const SpaceTimePoint& start) const;
 };
 
@@ -54,7 +54,7 @@ class BreakpointSpatial : public TrajectoryBreakpoint {
 
     public:
         BreakpointSpatial(Eigen::VectorXd x_min, Eigen::VectorXd x_max);
-        BreakpointState check(const PseudoParticleState& particle_state) const;
+        BreakpointState check(const SpaceTimePoint& p) const;
         int estimate_max_steps(const double timestep, const SpaceTimePoint& start) const;
 };
     

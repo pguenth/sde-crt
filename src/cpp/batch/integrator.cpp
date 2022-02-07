@@ -3,8 +3,8 @@
 LinearLiveIntegrator::LinearLiveIntegrator(std::function<double(const Eigen::VectorXd&)> callback) :
      _value(0), _callback(callback) {}
 
-void LinearLiveIntegrator::integrate(const PseudoParticleState& particle_state, double timestep){
-    _value += _callback(particle_state.get_x()) * timestep;
+void LinearLiveIntegrator::integrate(const SpaceTimePoint& p, double timestep){
+    _value += _callback(p.x) * timestep;
 }
 
 double LinearLiveIntegrator::value() const{

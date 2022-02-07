@@ -2,8 +2,8 @@
 
 BreakpointTimelimit::BreakpointTimelimit(double T) : _T(T) {};
 
-BreakpointState BreakpointTimelimit::check(const PseudoParticleState& particle_state) const {
-    if (particle_state.get_t() >= _T){
+BreakpointState BreakpointTimelimit::check(const SpaceTimePoint& p) const {
+    if (p.t >= _T){
         return BreakpointState::TIME;
     }else{
         return BreakpointState::NONE;
@@ -24,14 +24,14 @@ BreakpointSpatial::BreakpointSpatial(Eigen::VectorXd x_min, Eigen::VectorXd x_ma
     }
 }
 
-BreakpointState BreakpointSpatial::check(const PseudoParticleState& particle_state) const {
-    if (particle_state.get_x().size() != _1d_breakpoints.size()){
+BreakpointState BreakpointSpatial::check(const SpaceTimePoint& p) const {
+    if (p.x.size() != _1d_breakpoints.size()){
         throw std::invalid_argument("particle_state.x and the specified boundaries must have the same dimensions");
     }
 
     BreakpointState l;
     for (auto& breakpoint : _1d_breakpoints){
-        if ((l = breakpoint.check(particle_state)) != BreakpointState::NONE){
+        if ((l = breakpoint.check(p)) != BreakpointState::NONE){
             return l;
         }
     }
@@ -55,10 +55,10 @@ int BreakpointSpatial::estimate_max_steps(const double timestep, const SpaceTime
 BreakpointSpatialIndex::BreakpointSpatialIndex(int index, double x_min, double x_max) :
     _index(index), _x_min(x_min), _x_max(x_max) {}
 
-BreakpointState BreakpointSpatialIndex::check(const PseudoParticleState& particle_state) const {
-    if (particle_state.get_x()(_index) <= _x_min){
+BreakpointState BreakpointSpatialIndex::check(const SpaceTimePoint& p) const {
+    if (p.x(_index) <= _x_min){
         return BreakpointState::LOWER;
-    }else if (particle_state.get_x()(_index) >= _x_max){
+    }else if (p.x(_index) >= _x_max){
         return BreakpointState::UPPER;
     }else{
         return BreakpointState::NONE;

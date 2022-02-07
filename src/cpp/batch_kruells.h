@@ -9,6 +9,7 @@
 #include <functional>
 #include <limits>
 #include "batch/wienerprocess.h"
+#include "batch/scheme.h"
 #include "batch/breakpoint.h"
 #include "batch/integrator.h"
 #include "batch/pseudoparticlebatch.h"
@@ -18,7 +19,7 @@ using namespace std::placeholders;
 class BatchKruells1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
         public:
                 /**
@@ -33,7 +34,7 @@ class BatchKruells1 : public PseudoParticleBatch {
 class BatchKruells2 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
         public:
                 /**
@@ -48,7 +49,7 @@ class BatchKruells2 : public PseudoParticleBatch {
 class BatchKruells3 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
 
         public:
@@ -65,7 +66,7 @@ class BatchKruells3 : public PseudoParticleBatch {
 class BatchKruells4 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
 
         public:
@@ -82,7 +83,7 @@ class BatchKruells4 : public PseudoParticleBatch {
 class BatchKruells5 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
 
         public:
@@ -98,7 +99,7 @@ class BatchKruells5 : public PseudoParticleBatch {
 class BatchKruells6 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
 
         public:
@@ -115,7 +116,7 @@ class BatchKruells7 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -133,7 +134,7 @@ class BatchKruells8 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -151,7 +152,7 @@ class BatchKruells9 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -169,7 +170,7 @@ class BatchKruells10 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
 
 
         public:
@@ -187,7 +188,7 @@ class BatchKruells11 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -205,7 +206,7 @@ class BatchKruells11 : public PseudoParticleBatch {
 class BatchKruells12 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -223,7 +224,7 @@ class BatchKruells12 : public PseudoParticleBatch {
 class BatchKruells13 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -241,7 +242,7 @@ class BatchKruellsB1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -258,7 +259,7 @@ class BatchKruellsC1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -275,7 +276,7 @@ class BatchAchterberg1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
-                WienerProcess *_process;
+                EulerScheme *_scheme;
                 //LinearIntegrator *_sintegrator;
 
 

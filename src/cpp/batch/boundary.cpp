@@ -1,8 +1,8 @@
 #include "boundary.h"
 #include "pseudoparticle.h"
 
-void TrajectoryBoundary::replace(PseudoParticleState& particle_state) const {
-    if (_check(particle_state)){
-        _interact(particle_state);
+void TrajectoryBoundary::replace(SpaceTimePoint& p) const {
+    if (_check(p)){
+        _interact(p);
     }
 }

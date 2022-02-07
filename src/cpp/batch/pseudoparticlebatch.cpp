@@ -1,33 +1,33 @@
 #include "pseudoparticlebatch.h"
-PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
-    initialize(N, callbacks, start, options);
+PseudoParticleBatch::PseudoParticleBatch(int N, SpaceTimePoint start, PseudoParticleOptions options){
+    initialize(N, start, options);
 }
 
-PseudoParticleBatch::PseudoParticleBatch(int N, PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+PseudoParticleBatch::PseudoParticleBatch(int N, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
     SpaceTimePoint start(t0, x0);
-    initialize(N, callbacks, start, options);
+    initialize(N, start, options);
 }
 
-PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options){
-    PseudoParticleCallbacks callbacks(drift, diffusion);
-    initialize(N, callbacks, start, options);
-}
-
-PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
-    SpaceTimePoint start(t0, x0);
-    PseudoParticleCallbacks callbacks(drift, diffusion);
-    initialize(N, callbacks, start, options);
-}
+//    PseudoParticleCallbacks callbacks(drift, diffusion);
+//    PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options){
+//    initialize(N, callbacks, start, options);
+//}
+//
+//PseudoParticleBatch::PseudoParticleBatch(int N, drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+//    SpaceTimePoint start(t0, x0);
+//    PseudoParticleCallbacks callbacks(drift, diffusion);
+//    initialize(N, callbacks, start, options);
+//}
 
 PseudoParticleBatch::PseudoParticleBatch() {}
 
-void PseudoParticleBatch::initialize(int N, PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
+void PseudoParticleBatch::initialize(int N, SpaceTimePoint start, PseudoParticleOptions options){
     std::vector<SpaceTimePoint> starts(N, start);
-    initialize(callbacks, starts, options);
+    initialize(starts, options);
 }
 
-void PseudoParticleBatch::initialize(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
-    _construct(callbacks, starts, options);
+void PseudoParticleBatch::initialize(std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
+    _construct(starts, options);
 }
 
 
@@ -57,8 +57,7 @@ uint64_t __one_seed(pcg32_unique& rng){
 }
 
 
-void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
-    _callbacks = callbacks;
+void PseudoParticleBatch::_construct(std::vector<SpaceTimePoint> starts, PseudoParticleOptions options){
     _options = options;
     _starts = starts;
 
@@ -74,7 +73,7 @@ void PseudoParticleBatch::_construct(PseudoParticleCallbacks callbacks, std::vec
         _options.seeds.clear();
         _options.seeds.push_back(__one_seed(seed_rng));
         _options.seeds.push_back(__one_seed(seed_rng));
-        _particles.push_back(PseudoParticle(_callbacks, s, _options));
+        _particles.push_back(PseudoParticle(s, _options));
     }
 }
 

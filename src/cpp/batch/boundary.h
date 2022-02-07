@@ -10,11 +10,11 @@
 // for example, a mirroring boundary
 class TrajectoryBoundary {
     protected:
-        virtual void _interact(PseudoParticleState& state) const = 0;
-        virtual bool _check(const PseudoParticleState& state) const = 0;
+        virtual void _interact(SpaceTimePoint& p) const = 0;
+        virtual bool _check(const SpaceTimePoint& p) const = 0;
 
     public:
-        void replace(PseudoParticleState& particle_state) const; 
+        void replace(SpaceTimePoint& particle_state) const; 
 };
 
 #endif

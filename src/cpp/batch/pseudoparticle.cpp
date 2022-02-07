@@ -9,10 +9,9 @@ PseudoParticleOptions::~PseudoParticleOptions(){
 
 
 PseudoParticleOptions::PseudoParticleOptions (const PseudoParticleOptions& p){
-    timestep = p.timestep;
     tracked = p.tracked;
     breakpoints = p.breakpoints;
-    process = p.process;
+    scheme = p.scheme;
     seeds = p.seeds;
 
     _integrators = std::list<TrajectoryLiveIntegrator *>();
@@ -24,10 +23,9 @@ PseudoParticleOptions::PseudoParticleOptions (const PseudoParticleOptions& p){
 }
 
 PseudoParticleOptions& PseudoParticleOptions::operator= (const PseudoParticleOptions& p){
-    timestep = p.timestep;
     tracked = p.tracked;
     breakpoints = p.breakpoints;
-    process = p.process;
+    scheme = p.scheme;
     seeds = p.seeds;
 
     for (auto &elem : _integrators) delete elem;
@@ -41,10 +39,9 @@ PseudoParticleOptions& PseudoParticleOptions::operator= (const PseudoParticleOpt
 }
 
 PseudoParticleOptions::PseudoParticleOptions (PseudoParticleOptions&& p){
-    timestep = p.timestep;
     tracked = p.tracked;
     breakpoints = p.breakpoints;
-    process = p.process;
+    scheme = p.scheme;
     seeds = p.seeds;
 
     _integrators= std::list<TrajectoryLiveIntegrator *>();
@@ -54,10 +51,8 @@ PseudoParticleOptions::PseudoParticleOptions (PseudoParticleOptions&& p){
 }
 
 PseudoParticleOptions& PseudoParticleOptions::operator= (PseudoParticleOptions&& p){
-    timestep = p.timestep;
-    tracked = p.tracked;
     breakpoints = p.breakpoints;
-    process = p.process;
+    scheme = p.scheme;
     seeds = p.seeds;
     
     for (auto &elem : _integrators) delete elem;
@@ -76,15 +71,14 @@ void PseudoParticleOptions::add_integrator(const TrajectoryLiveIntegrator& integ
     _integrators.push_back(integrator.clone());
 }
 
-void PseudoParticle::_construct(PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
-    _callbacks = callbacks;
+void PseudoParticle::_construct(SpaceTimePoint start, PseudoParticleOptions options){
     _options = options;
 
-    if (_options.process == nullptr) {
-        throw std::logic_error("No stochastic process is given");
+    if (_options.scheme == nullptr) {
+        throw std::logic_error("No scheme process is given");
     }
 
-    _options.process = _options.process->copy(_options.seeds);
+    _options.scheme = _options.scheme->copy(_options.seeds);
 
     int max_steps;
     if (_options.tracked){
@@ -95,31 +89,35 @@ void PseudoParticle::_construct(PseudoParticleCallbacks callbacks, SpaceTimePoin
     _state = PseudoParticleState(this, start, max_steps, _options.tracked);
 }
 
-PseudoParticle::PseudoParticle(PseudoParticleCallbacks callbacks, SpaceTimePoint start, PseudoParticleOptions options){
-   _construct(callbacks, start, options);
+PseudoParticle::PseudoParticle(SpaceTimePoint start, PseudoParticleOptions options){
+   _construct(start, options);
 }
 
-PseudoParticle::PseudoParticle(PseudoParticleCallbacks callbacks, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+PseudoParticle::PseudoParticle(double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
     SpaceTimePoint start{t0, x0};
-    _construct(callbacks, start, options);
+    _construct(start, options);
 }
 
 
-PseudoParticle::PseudoParticle(drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options){
-    PseudoParticleCallbacks callbacks{drift, diffusion};
-    _construct(callbacks, start, options);
-}
-
-PseudoParticle::PseudoParticle(drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
-    PseudoParticleCallbacks callbacks{drift, diffusion};
-    SpaceTimePoint start{t0, x0};
-    _construct(callbacks, start, options);
-}
+//PseudoParticle::PseudoParticle(drift_t drift, diffusion_t diffusion, SpaceTimePoint start, PseudoParticleOptions options){
+//    PseudoParticleCallbacks callbacks{drift, diffusion};
+//    _construct(start, options);
+//}
+//
+//PseudoParticle::PseudoParticle(drift_t drift, diffusion_t diffusion, double t0, Eigen::VectorXd x0, PseudoParticleOptions options){
+//    PseudoParticleCallbacks callbacks{drift, diffusion};
+//    SpaceTimePoint start{t0, x0};
+//    _construct(start, options);
+//}
 
 
 //get
 const PseudoParticleState& PseudoParticle::state() const {
     return _state;
+}
+
+const SpaceTimePoint& PseudoParticle::get_p() const {
+    return _state.get_p();
 }
 
 bool PseudoParticle::finished() const {
@@ -134,7 +132,7 @@ const std::list<TrajectoryLiveIntegrator *> PseudoParticle::integrators() const 
 bool PseudoParticle::_break(){
     BreakpointState b_state;
     for (auto& b : _options.breakpoints){
-        if ((b_state = b->check(state())) != BreakpointState::NONE){
+        if ((b_state = b->check(get_p())) != BreakpointState::NONE){
             _state.finish(b_state);
             return true;
         }
@@ -145,7 +143,7 @@ bool PseudoParticle::_break(){
 
 void PseudoParticle::_integrate(){
     for (auto& i : _options.integrators()){
-        i->integrate(state(), _options.timestep);
+        i->integrate(get_p(), _options.scheme->timestep_at(state().get_p()));
     }
 }
 
@@ -166,14 +164,13 @@ bool PseudoParticle::step() {
     _integrate();
     if (_break()) return finished();
 
-    Eigen::VectorXd x_old = state().get_x();
-    Eigen::VectorXd x_new = x_old + _options.timestep * _callbacks.drift(x_old) + _callbacks.diffusion(x_old) * _options.process->next(_options.timestep);
+    SpaceTimePoint new_p = _options.scheme->propagate(state().get_p());
 
     for (auto& b : _options.boundaries){
-       b->replace(_state);
+       b->replace(new_p);
     }
 
-    _state.update(state().get_t() + _options.timestep, x_new);
+    _state.update(new_p);
 
     return finished();
 }
@@ -187,7 +184,7 @@ int PseudoParticle::estimate_max_steps(const SpaceTimePoint& start) const{
     int this_steps;
 
     for (auto& breakpoint : _options.breakpoints){
-        this_steps = breakpoint->estimate_max_steps(_options.timestep, start);
+        this_steps = breakpoint->estimate_max_steps(_options.scheme->timestep_at(start), start);
         if (this_steps > max_steps) max_steps = this_steps;
     }
 

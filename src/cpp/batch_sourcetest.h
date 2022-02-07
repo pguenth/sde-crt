@@ -15,6 +15,7 @@ class BatchSourcetest : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
                 WienerProcess *_process;
+                EulerScheme *_scheme;
                 LinearIntegrator *_sintegrator;
 
 
