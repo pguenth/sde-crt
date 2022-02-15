@@ -799,7 +799,7 @@ def kruells9b1():
 
     valuesx = ValuesNode('valuesx', index=0, cache=cache, ignore_cache=False)
     valuesp = ValuesNode('valuesp', index=1, cache=cache, ignore_cache=False,
-            confine_range=[(0, -100, 300)],
+            confine_range=[(0, -100, 250)],
             confinements=[(0, lambda x: np.abs(x) <= 100)]
         )
 
@@ -807,16 +807,18 @@ def kruells9b1():
     histogramx = HistogramNode('histox', {'values' : valuesx}, log_bins=False, normalize='width', **histo_opts)
     histogramp = HistogramNode('histop', {'values' : valuesp}, log_bins=True, normalize='density', **histo_opts)
     
-    nu_range = np.logspace(10, 25, 100) * u.Hz
+    nu_range = np.logspace(2, 16, 100) * u.Hz
     p_inj = 100 * constants.m_e * constants.c
     gamma_integrate = np.logspace(1, 9, 20)
-    model_params = dict(delta_D=10, z=Distance(1e27, unit=u.cm).z, B=1 * u.G, d_L=1e27 * u.cm, R_b=1e16 * u.cm)
+    model_params = dict(delta_D=10, z=Distance(1e27, unit=u.cm).z, d_L=1e27 * u.cm, R_b=1e16 * u.cm)
 
     def cb(model_params, batch_params):
-        k_syn = batch_params['k_syn']
+        k_syn = batch_params['k_syn'] * u.Unit("kg-1 m-1")
+        cgs_gauss_eq = (u.G, u.Unit("cm(-1/2) g(1/2) s-1"), lambda x: x, lambda x: x)
         B = (constants.m_e * constants.c / constants.e.si)**2 * np.sqrt(6 * np.pi * constants.eps0 * k_syn)
-        B_cgs = B * np.sqrt(4 * np.pi / constants.mu0)
-        return model_params# | {'B' : B_cgs}
+        B_cgs = (B * np.sqrt(4 * np.pi / constants.mu0)).to("gauss", equivalencies=[cgs_gauss_eq])
+        print(B, B_cgs)
+        return model_params | {'B' : B_cgs}
 
     radiation_params = dict(plot=True, model_params=model_params, model_params_callback=cb, nu_range=nu_range, gamma_integrate=gamma_integrate, cache=cache, ignore_cache=False)
     transform = MomentumCount('mc', [histogramp], plot=False, cache=cache, p_inj=p_inj)
@@ -836,7 +838,7 @@ def kruells9b1():
     #nfig.show_nodes("synchronodes.pdf")
     #nfig.add(synchrotronfluxdelta, 2)
     #nfig.add(sscflux, 2)
-    nfig[2].format(ylim=(1e-14, 1e-8))
+    nfig[2].format(ylim=(1e-30, 1e-26))
     nfig[2].legend(ncols=1, loc='r', handles=[
         Line2D([], [], label='Synchrotron', color='k'),
         Line2D([], [], linestyle='dashed', alpha=0.6, label='SSC (delta approx.)', color='k'),

@@ -15,7 +15,7 @@ class IsUnpicklable(Enum):
 class CacheException(Exception):
     pass
 
-class NodeCache:
+class NodeCache(ABC):
     """
     Handles caching of data calculated by nodes 
     (not yet: and tracks nodes that were already evaluated)
@@ -59,25 +59,42 @@ class NodeCache:
         """
         raise NotImplementedError
 
-class KwargsCacheMixin:
-    def store_kwargs(self, name, kwargs):
+class KwargsCacheMixin(ABC):
+    @abstractmethod
+    def _store_kwargs(self, name, kwargs):
         """
-        Store the kwargs. If this method is overridden (i.e. your cache supports
-        storage of kwargs) load_kwargs must be overridden too.
+        Store the kwargs. Must be overridden.
+        Don't call this method directly instead use :py:meth:`store_kwargs`
         """
         raise NotImplementedError
 
-    def load_kwargs(self, name):
+    @abstractmethod
+    def _load_kwargs(self, name):
         """
-        Load the kwargs. If this method is overridden (i.e. your cache supports
-        storage of kwargs) store_kwargs must be overridden too.
+        Load the kwargs. Must be overridden.
         """
         raise NotImplementedError
+
+    def store_kwargs(self, name, kwargs):
+        """
+        Store the new kwargs (overriding the old)
+        """
+        kw = self._cleancopy(kwargs)
+        self._store_kwargs(name, kw)
+
+    def load_kwargs(self, name):
+        """
+        It is not advised to use this method, even if it is in priciple
+        useful. You should only use :py:meth:`store_kwargs` and 
+        :py:meth:`kwargs_changed`. Especially for comparing an possibly
+        different kwargs use the latter method instead of this method
+        and a manual comparison.
+        """
+        return self._load_kwargs(name)
 
     def kwargs_changed(self, name, kwargs):
         """
         Return True if the cached kwargs differ from the kwargs that have been stored
-        and store the new kwargs (overriding the old)
 
         Return False if they are the same.
 
@@ -89,8 +106,6 @@ class KwargsCacheMixin:
             return False
         except CacheException:
             logging.warning("No stored kwargs found. This may be the case because of migration from cached nodes that were cached without kwargs. This warning will be removed in the future and instead raise an error.")
-            kw = self._cleancopy(kwargs)
-            self.store_kwargs(name, kw)
             return False
 
         new_kw = self._cleancopy(kwargs)
@@ -98,7 +113,6 @@ class KwargsCacheMixin:
         if self._compare_dict_rec(old_kw, new_kw):
             return False
         else:
-            self.store_kwargs(name, new_kw)
             return True
 
     def replace_kwargs_item(self, item):
@@ -181,8 +195,6 @@ class KwargsCacheMixin:
         else:
             return v1 == v2
 
-
-
 class FileCache(KwargsCacheMixin, NodeCache):
     """
     Provides methods for caching and restoring with pickle.
@@ -213,10 +225,10 @@ class FileCache(KwargsCacheMixin, NodeCache):
     def _write_file(file, obj):
         raise NotImplementedError
 
-    def load_kwargs(self, name):
+    def _load_kwargs(self, name):
         return self.load(name + "_kwargs", loglevel=logging.DEBUG)
 
-    def store_kwargs(self, name, kwargs):
+    def _store_kwargs(self, name, kwargs):
         self.store(name + "_kwargs", kwargs, loglevel=logging.DEBUG)
 
     def load(self, name, loglevel=logging.INFO):

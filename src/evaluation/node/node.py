@@ -17,12 +17,20 @@ def simple_cache(func):
     time, instead the cache is returned, potentially generated with
     different arguments.
 
+    If the object has an attribute called 'disable_ram_cache' and it
+    is set to True at the time of the decorated function being called
+    this decorator has no effect. I know this is not ideal but see it as
+    a temporary solution (more in :py:class:`EvalNode`)
+
     If this functionality is not intended, use functools.cache
     """
 
     @wraps(func)
     def decorated(*args, **kwargs):
         self = args[0]
+        if hasattr(self, 'disable_ram_cache') and self.disable_ram_cache:
+            return func(*args, **kwargs)
+
         if not '__c_' + func.__name__ in self.__dict__:
             self._log_debug("[RAM cache] cache empty, calling the requested function {}".format(func.__name__))
             self.__dict__['__c_' + func.__name__] = func(*args, **kwargs)
@@ -87,6 +95,12 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     doing the operations defined by simply calling the instance. This leads to
     recursively acquiring data on all parent nodes and then evaluating the
     called node.
+
+    At the moment modifying the nodes after calling one of them can lead to
+    unexpected behaviour because the result of :py:meth:`do` is cached (in RAM)
+    and eventual modifications cannot be detected. This may change in the
+    future to support this workflow. Until then you can deactivate the RAM cache
+    by setting :py:attr:`EvalNode.disable_ram_cache` to *True*.
 
     Every decendant class of this class should implement one (atomic) step
     or operation in the process of evaluating an experiment. When deriving
@@ -169,6 +183,12 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         # !!! NOT USED ANYWHERE IN THIS CLASS
         # PLEASE IMPLEMENT IN _DO(...)
         self.never_cache = False
+
+        # remember if the kwargs were identified as changed in one run of _do
+        # so that other runs return the updated data instead of nothing
+        self._kwargs_changed = False
+
+        self.disable_ram_cache = False
 
         self._color = None
 
@@ -526,8 +546,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         self._log_debug("Executing .do() to regenerate data")
         v = self.do(self._parent_data, common, **(self.ext | kwargs))
         if not self.cache is None:
-            self._log_debug("Caching generated data")
+            self._log_debug("Caching generated data and possibly kwargs")
             self.cache.store(self.name, v)
+            if isinstance(self.cache, KwargsCacheMixin):
+                self.cache.store_kwargs(self.name, self.ext | kwargs)
 
         return v
 
@@ -546,36 +568,44 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         if not common_add is None:
             common.update(common_add)
 
-    def _do(self, ax, plot_group, need_data, common, memo, kwargs):
-        # check if a cache exists and if we should use it
-        # or if we need data from our parents for regeneration
+    def _check_data_needed(self):
+        """
+        Check if this node needs data from its parents
+        checks existance and usability of caching
+        """
         if self.cache is None:
             if self._no_cache_regen: 
                 self._log_debug("Needs data because no NodeCache is attached")
-                this_need_data = True
+                return True
             else:
                 self._log_debug("Does not need data")
-                this_need_data = False
+                return False
         elif self.ignore_cache:
             self._log_debug("Needs data because cache should be ignored")
-            this_need_data = True
+            return True
         elif not self.cache.exists(self.name) and self._no_cache_regen:
             self._log_debug("Needs data because no cached data exists")
-            this_need_data = True
+            return True
         else:
             # cache exists, check kwargs
             if isinstance(self.cache, KwargsCacheMixin) and self.cache.kwargs_changed(self.name, self.ext):
-                self._log_debug("The stored kwargs are not up to date, so the cache is ignored. Current kwargs stored.")
-                this_need_data = True
+                self._log_debug("The stored kwargs are not up to date, so the cache is ignored.")
+                self._kwargs_changed = True
+                return True
             else:
                 self._log_debug("Does not need data")
-                this_need_data = False
+                return False
 
-        self._update_common(common, kwargs)
+    def _maybe_fill_parent_data(self, ax, plot_group, this_need_data, common, memo, kwargs):
+        """
+        Fills parent data but allows parents to return None if this_need_data is False.
+        This function is for checking wether any :py:class:`EvalNode`s see the need
+        to update and if they do, update them.
 
+        :return: Wether one or more parents actually returned data
+        :rtype:
+        """
         self._log_debug("Traversing the tree upwards")
-
-        # request data from parents using this info
         must_fill = False # track if any parents return data (not None)
         for k, p in self.parents_iter:
             maybe_data = p._do(ax, plot_group, this_need_data, common, memo, kwargs)
@@ -583,15 +613,62 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             self._parent_data[k] = maybe_data
             must_fill = must_fill or not maybe_data is None
 
+        return must_fill
+
+    def _fill_parent_data(self, plot_group, common, memo, kwargs):
+        """
+        Fills parent data (that is still empty) but 
+         * no plotting
+         * force parents to return data
+
+        This function is used to gather the data of all remaining nodes
+        if one or more nodes return an update while called in :py:meth:`_maybe_fill_parent_data`
+
+        :rtype: None
+        """
+        self._log_debug("Some parents returned data, so we assume regeneration is neccessary and traverse the tree a second time to get all data")
+        for k, p in self.parents_iter:
+            if self._parent_data[k] is None:
+                self._parent_data[k] = p._do(None, plot_group, True, common, memo, kwargs)
+
+    def _maybe_plot(self, v, plot_on, common, kwargs):
+        if v is None:
+            # if there is need for a plot, but no data available at this point
+            # we can use the cache for plotting since there are no updates
+            self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
+            v = self._cacheload_v()
+        else:
+            # plot with available data
+            self._log_debug("Plot the node")
+
+        self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
+
+        if not (type(self._plot_handles) is list or self._plot_handles is None):
+            self._plot_handles = [self._plot_handles]
+
+        # bodgy: store the color of the first returned handle
+        if not self._plot_handles[0] is None and self._color is None:
+            self._color = self._plot_handles[0].get_color()
+
+        return v
+
+    def _data(self, force, common, memo, kwargs):
+        pass
+
+
+    def _do(self, ax, plot_group, need_data, common, memo, kwargs):
+        this_need_data = self._check_data_needed()
+
+        self._update_common(common, kwargs)
+
+        # request data from parents using this info
+        must_fill = self._maybe_fill_parent_data(ax, plot_group, this_need_data, common, memo, kwargs)
         if must_fill:
             # if none or some (but not all) parents returned None (= (>=1 parent returned data))
             # we force those to return us data
             # if there is no cache, we will always land here
             # because we requested data from all parents (this_need_data == True in this case)
-            self._log_debug("Some parents returned data, so we assume regeneration is neccessary and traverse the tree a second time to get all data")
-            for k, p in self.parents_iter:
-                if self._parent_data[k] is None:
-                    self._parent_data[k] = p._do(None, plot_group, True, common, memo, kwargs)
+            self._fill_parent_data(plot_group, common, memo, kwargs)
 
             self._log_debug("Requesting regeneration or RAM cache retrieval of data")
             v = self._generate_v(common, kwargs)
@@ -606,6 +683,9 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             # we can load the cache
             self._log_debug("Request loading data from cache or RAM cache")
             v = self._cacheload_v()
+        elif self._kwargs_changed:
+            self._log_debug("Request loading data from cache or RAM cache because the kwargs were marked as updated in another call of _do()")
+            v = self._cacheload_v()
         else:
             # all parents returned None and the child doesn't need data
             # so we return None to tell it that we don't have updates
@@ -615,23 +695,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         if self.in_plot_group(plot_group) and not self in memo:
             memo.append(self)
             plot_on = self._ax if not self._ax is None else ax
-            if v is None:
-                # if there is need for a plot, but no data available at this point
-                # we can use the cache for plotting since there are no updates
-                self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
-                v = self._cacheload_v()
-            else:
-                # plot with available data
-                self._log_debug("Plot the node")
-
-            self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
-
-            if not (type(self._plot_handles) is list or self._plot_handles is None):
-                self._plot_handles = [self._plot_handles]
-
-            # bodgy: store the color of the first returned handle
-            if not self._plot_handles[0] is None and self._color is None:
-                self._color = self._plot_handles[0].get_color()
+            self._maybe_plot(v, plot_on, common, kwargs)
+            # modification: at this place, when v == None, v was loaded from 
+            # and returned, so child notes regenerated.
+            # this has been removed but I dont know if it was actually senseful
 
         return v
 
