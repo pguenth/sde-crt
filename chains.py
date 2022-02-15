@@ -69,7 +69,7 @@ def get_chain_times_maxpl(batch_cls, cache, param, times, confine_x=np.inf, bin_
 
     return histosetx, histosetp, powerlaw
 
-def get_chain_single(batch_cls, cache, confine_x, bin_count=30, histo_opts={}, param=None):
+def get_chain_single(batch_cls, cache, confine_x, bin_count=30, histo_opts={}, param=None, log_bins=None):
     batch = BatchNode('batch', batch_cls = batch_cls, cache=cache, param=param, ignore_cache=False)
     points = PointNode('points', {'batch' : batch}, cache=cache, ignore_cache=False)
 
@@ -79,17 +79,17 @@ def get_chain_single(batch_cls, cache, confine_x, bin_count=30, histo_opts={}, p
         )
 
     histo_opts = {'bin_count' : bin_count, 'plot' : True, 'cache' : cache, 'ignore_cache' : False} | histo_opts
-    histogramx = HistogramNode('histox', {'values' : valuesx}, log_bins=False, normalize='width', **histo_opts)
-    histogramp = HistogramNode('histop', {'values' : valuesp}, log_bins=True, normalize='density', **histo_opts)
+    histogramx = HistogramNode('histox', {'values' : valuesx}, log_bins=False if log_bins is None else log_bins, normalize='width', **histo_opts)
+    histogramp = HistogramNode('histop', {'values' : valuesp}, log_bins=True if log_bins is None else log_bins, normalize='density', **histo_opts)
 
     return histogramx, histogramp
 
-def get_chain_powerlaw_datapoint(batch_cls, cache, confine_x, xparam_callback, histo_opts={}, negate_index=False):
+def get_chain_powerlaw_datapoint(batch_cls, cache, confine_x, xparam_callback, histo_opts={}, negate_index=False, log_bins=None):
     """
     """
     cycle = ColorCycle(['red', 'green', 'blue', 'yellow', 'black', 'violet'])
 
-    histogramx, histogramp = get_chain_single(batch_cls, cache, confine_x, histo_opts={'color_cycle': cycle} | histo_opts)
+    histogramx, histogramp = get_chain_single(batch_cls, cache, confine_x, log_bins=log_bins, histo_opts={'color_cycle': cycle} | histo_opts)
     histogramp.plot_on = 'spectra'
 
     powerlaw = PowerlawNode('pl', {'dataset' : histogramp }, plot='spectra', color_cycle=cycle, negative=negate_index)

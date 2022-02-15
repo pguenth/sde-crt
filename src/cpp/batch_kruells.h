@@ -20,6 +20,7 @@ class BatchKruells1 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
         public:
                 /**
@@ -35,6 +36,7 @@ class BatchKruells2 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
         public:
                 /**
@@ -50,6 +52,7 @@ class BatchKruells3 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
 
         public:
@@ -67,6 +70,7 @@ class BatchKruells4 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
 
         public:
@@ -84,6 +88,7 @@ class BatchKruells5 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
 
         public:
@@ -100,6 +105,7 @@ class BatchKruells6 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
 
         public:
@@ -117,6 +123,7 @@ class BatchKruells7 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -135,6 +142,7 @@ class BatchKruells8 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -153,6 +161,7 @@ class BatchKruells9 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -171,6 +180,7 @@ class BatchKruells10 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
 
 
         public:
@@ -189,6 +199,7 @@ class BatchKruells11 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -207,6 +218,7 @@ class BatchKruells12 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -225,6 +237,7 @@ class BatchKruells13 : public PseudoParticleBatch {
         private:
                 BreakpointTimelimit *_tlimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -243,6 +256,7 @@ class BatchKruellsB1 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -260,6 +274,7 @@ class BatchKruellsC1 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -270,6 +285,7 @@ class BatchKruellsC1 : public PseudoParticleBatch {
                 BatchKruellsC1(std::map<std::string, double> params);
                 ~BatchKruellsC1();
 };
+
 /**
  */
 class BatchAchterberg1 : public PseudoParticleBatch {
@@ -277,6 +293,7 @@ class BatchAchterberg1 : public PseudoParticleBatch {
                 BreakpointTimelimit *_tlimit;
                 //BreakpointSpatial *_slimit;
                 EulerScheme *_scheme;
+                WienerProcess *_process;
                 //LinearIntegrator *_sintegrator;
 
 
@@ -286,5 +303,60 @@ class BatchAchterberg1 : public PseudoParticleBatch {
                  */
                 BatchAchterberg1(std::map<std::string, double> params);
                 ~BatchAchterberg1();
+};
+/**
+ */
+class BatchAchterberg1KPPC : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                KPPCScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg1KPPC(std::map<std::string, double> params);
+                ~BatchAchterberg1KPPC();
+};
+
+/**
+ */
+class BatchAchterberg2 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                EulerScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2(std::map<std::string, double> params);
+                ~BatchAchterberg2();
+};
+/**
+ */
+class BatchAchterberg2KPPC : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                KPPCScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2KPPC(std::map<std::string, double> params);
+                ~BatchAchterberg2KPPC();
 };
 #endif

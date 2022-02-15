@@ -35,7 +35,7 @@ Eigen::MatrixXd kruells921_diffusion(const SpaceTimePoint& p, double T){
 
 BatchKruells1::BatchKruells1(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -51,7 +51,7 @@ BatchKruells1::BatchKruells1(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells921_drift, _1, msa(params, "Tesc"));
     auto call_diffusion = std::bind(kruells921_diffusion, _1, msa(params, "Tesc"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting point
     Eigen::VectorXd start_x(2);
@@ -72,6 +72,7 @@ BatchKruells1::BatchKruells1(std::map<std::string, double> params){
 
 BatchKruells1::~BatchKruells1(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -184,7 +185,7 @@ Eigen::MatrixXd kruells_shockaccel2_diffusion(const SpaceTimePoint& p, double Xs
 
 BatchKruells2::BatchKruells2(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -204,7 +205,7 @@ BatchKruells2::BatchKruells2(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel_drift_92, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"));
     auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting point
     Eigen::VectorXd start_x(2);
@@ -225,6 +226,7 @@ BatchKruells2::BatchKruells2(std::map<std::string, double> params){
 
 BatchKruells2::~BatchKruells2(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -234,7 +236,7 @@ BatchKruells2::~BatchKruells2(){
 
 BatchKruells3::BatchKruells3(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -254,7 +256,7 @@ BatchKruells3::BatchKruells3(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel_drift_94, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"));
     auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -277,6 +279,7 @@ BatchKruells3::BatchKruells3(std::map<std::string, double> params){
 
 BatchKruells3::~BatchKruells3(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -294,7 +297,7 @@ double kruells94_injection_region(const Eigen::VectorXd& s, double a_inj, double
 
 BatchKruells4::BatchKruells4(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -314,7 +317,7 @@ BatchKruells4::BatchKruells4(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel_drift_94, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"));
     auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // integrator
     auto call_integrate = std::bind(kruells94_injection_region, _1, msa(params, "a_inj"), msa(params, "r_inj"));
@@ -339,6 +342,7 @@ BatchKruells4::BatchKruells4(std::map<std::string, double> params){
 
 BatchKruells4::~BatchKruells4(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -349,7 +353,7 @@ BatchKruells4::~BatchKruells4(){
 
 BatchKruells5::BatchKruells5(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -369,7 +373,7 @@ BatchKruells5::BatchKruells5(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -392,6 +396,7 @@ BatchKruells5::BatchKruells5(std::map<std::string, double> params){
 
 BatchKruells5::~BatchKruells5(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -401,7 +406,7 @@ BatchKruells5::~BatchKruells5(){
 
 BatchKruells6::BatchKruells6(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -421,7 +426,7 @@ BatchKruells6::BatchKruells6(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel_drift_92, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"));
     auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -444,6 +449,7 @@ BatchKruells6::BatchKruells6(std::map<std::string, double> params){
 
 BatchKruells6::~BatchKruells6(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -453,7 +459,7 @@ BatchKruells6::~BatchKruells6(){
 
 BatchKruells7::BatchKruells7(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -473,7 +479,7 @@ BatchKruells7::BatchKruells7(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_92, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -496,6 +502,7 @@ BatchKruells7::BatchKruells7(std::map<std::string, double> params){
 
 BatchKruells7::~BatchKruells7(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -505,7 +512,7 @@ BatchKruells7::~BatchKruells7(){
 
 BatchKruells8::BatchKruells8(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -525,7 +532,7 @@ BatchKruells8::BatchKruells8(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // integrator
     auto call_integrate = std::bind(kruells94_injection_region, _1, msa(params, "a_inj"), msa(params, "r_inj"));
@@ -550,6 +557,7 @@ BatchKruells8::BatchKruells8(std::map<std::string, double> params){
 
 BatchKruells8::~BatchKruells8(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -559,7 +567,7 @@ BatchKruells8::~BatchKruells8(){
 
 BatchKruells9::BatchKruells9(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -579,7 +587,7 @@ BatchKruells9::BatchKruells9(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -602,6 +610,7 @@ BatchKruells9::BatchKruells9(std::map<std::string, double> params){
 
 BatchKruells9::~BatchKruells9(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -611,7 +620,7 @@ BatchKruells9::~BatchKruells9(){
 
 BatchKruells10::BatchKruells10(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -632,7 +641,7 @@ BatchKruells10::BatchKruells10(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel_pure_drift, _1, msa(params, "Xsh"), a, b);
     auto call_diffusion = std::bind(kruells_shockaccel_diffusion, _1, msa(params, "kappa"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -655,6 +664,7 @@ BatchKruells10::BatchKruells10(std::map<std::string, double> params){
 
 BatchKruells10::~BatchKruells10(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -664,7 +674,7 @@ BatchKruells10::~BatchKruells10(){
 
 BatchKruells11::BatchKruells11(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -684,7 +694,7 @@ BatchKruells11::BatchKruells11(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -707,6 +717,7 @@ BatchKruells11::BatchKruells11(std::map<std::string, double> params){
 
 BatchKruells11::~BatchKruells11(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -725,7 +736,7 @@ Eigen::VectorXd kruells_shockaccel2_drift_94_3(const SpaceTimePoint& p, double X
 
 BatchKruells12::BatchKruells12(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -745,7 +756,7 @@ BatchKruells12::BatchKruells12(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94_3, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"), msa(params, "Xdiff"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -768,6 +779,7 @@ BatchKruells12::BatchKruells12(std::map<std::string, double> params){
 
 BatchKruells12::~BatchKruells12(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -785,7 +797,7 @@ Eigen::VectorXd kruells_shockaccel2_drift_94_4(const SpaceTimePoint& p, double X
 
 BatchKruells13::BatchKruells13(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -805,7 +817,7 @@ BatchKruells13::BatchKruells13(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel2_drift_94_4, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"), msa(params, "Xdiff"));
     auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -828,6 +840,7 @@ BatchKruells13::BatchKruells13(std::map<std::string, double> params){
 
 BatchKruells13::~BatchKruells13(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -863,7 +876,7 @@ Eigen::MatrixXd achterberg_diffusion(const SpaceTimePoint& p, double Ls, double 
 
 BatchAchterberg1::BatchAchterberg1(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -883,7 +896,7 @@ BatchAchterberg1::BatchAchterberg1(std::map<std::string, double> params){
     auto call_drift = std::bind(achterberg_drift, _1, msa(params, "Ls"), a, b, msa(params, "q"));
     auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -906,6 +919,168 @@ BatchAchterberg1::BatchAchterberg1(std::map<std::string, double> params){
 
 BatchAchterberg1::~BatchAchterberg1(){
     delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+
+BatchAchterberg1KPPC::BatchAchterberg1KPPC(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new KPPCScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg1KPPC::~BatchAchterberg1KPPC(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+// with ln(p) parametrisation like in the paper
+Eigen::VectorXd achterberg_drift_ln(const SpaceTimePoint& p, double Ls, double a, double b, double q){
+    Eigen::VectorXd v(2);
+    v(0) = achterberg_dkappa_dx(p.x(0), Ls, b, q) + kruells94_beta(p.x(0), Ls, a, b);
+    v(1) = -1 * (kruells94_dbetadx(p.x(0), Ls, b) / 3);
+    return v;
+}
+
+BatchAchterberg2::BatchAchterberg2(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2::~BatchAchterberg2(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+BatchAchterberg2KPPC::BatchAchterberg2KPPC(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new KPPCScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2KPPC::~BatchAchterberg2KPPC(){
+    delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -934,7 +1109,7 @@ Eigen::MatrixXd kruells_shockaccel3_diffusion(const SpaceTimePoint& p, double ka
 
 BatchKruellsB1::BatchKruellsB1(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -964,7 +1139,7 @@ BatchKruellsB1::BatchKruellsB1(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_shockaccel3_drift_94, _1, msa(params, "Xsh"), a, b, k_syn, kappa);
     auto call_diffusion = std::bind(kruells_shockaccel3_diffusion, _1, kappa);
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -988,6 +1163,7 @@ BatchKruellsB1::BatchKruellsB1(std::map<std::string, double> params){
 
 BatchKruellsB1::~BatchKruellsB1(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;
@@ -1016,7 +1192,7 @@ Eigen::VectorXd kruells_2ndorder_drift(const SpaceTimePoint& p, double k_syn, do
 
 BatchKruellsC1::BatchKruellsC1(std::map<std::string, double> params){
     // get a random generator
-    WienerProcess *process = new WienerProcess(2);
+    _process = new WienerProcess(2);
 
     // time limit breakpoint
     _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
@@ -1033,7 +1209,7 @@ BatchKruellsC1::BatchKruellsC1(std::map<std::string, double> params){
     auto call_drift = std::bind(kruells_2ndorder_drift, _1, msa(params, "k_syn"), msa(params, "a2"));
     auto call_diffusion = std::bind(kruells_2ndorder_diffusion, _1, msa(params, "kappa"), msa(params, "a2"));
     auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
-    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, process);
+    _scheme = new EulerScheme(call_drift, call_diffusion, call_timestep, _process);
 
     // starting points
     std::vector<SpaceTimePoint> starts;
@@ -1057,6 +1233,7 @@ BatchKruellsC1::BatchKruellsC1(std::map<std::string, double> params){
 
 BatchKruellsC1::~BatchKruellsC1(){
     delete _scheme;
+    delete _process;
     delete _tlimit;
     //delete _slimit;
     //delete _sintegrator;

@@ -8,19 +8,19 @@ double sourcetest_integrate(const Eigen::VectorXd& x){
     return x_new[0];
 }
 
-Eigen::VectorXd sourcetest_drift(const Eigen::VectorXd& x){
+Eigen::VectorXd sourcetest_drift(const SpaceTimePoint& p){
     Eigen::VectorXd v(1);
     v << 0;
     return v;
 }
 
-Eigen::MatrixXd sourcetest_diffusion(const Eigen::VectorXd& x){
+Eigen::MatrixXd sourcetest_diffusion(const SpaceTimePoint& p){
     Eigen::MatrixXd v(1, 1);
     v << 1;
     return v;
 }
 
-double ts_const(const SpaceTimePoint& p, double dt){
+double ts_const_2(const SpaceTimePoint& p, double dt){
     return dt;
 }
 
@@ -47,7 +47,7 @@ BatchSourcetest::BatchSourcetest(std::map<std::string, double> params){
 
     // callbacks
     // not sure if &function is better
-    auto ts = std::bind(ts_const, _1, 0.005);
+    auto ts = std::bind(ts_const_2, std::placeholders::_1, 0.005);
     _scheme = new EulerScheme(sourcetest_drift, sourcetest_diffusion, ts, _process);
 
     // starting point

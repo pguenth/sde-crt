@@ -20,6 +20,18 @@ doublehist = NodeFigureFormat(
                 legends_kw={1: {'loc': 'ur', 'ncols': 1}}
         )
 
+doublehistSED = NodeFigureFormat(
+                subplots={'ncols' : 3},
+                fig_format={},
+                axs_format=[
+                        {'yformatter': 'sci', 'xlabel': '$x$', 'yscale': 'log', 'ylabel':'particle number density'},
+                        {'yformatter': 'sci', 'xscale': 'log', 'xformatter': 'sci', 'xlabel': '$p/p_\\textrm{inj}$', 'yscale': 'log', 'ylabel':'particle number density'},
+                        {'yformatter': 'sci', 'xlabel': '$\\nu$', 'xformatter': 'sci', 'xscale': 'log', 'ylabel': 'Flux $\\nu F_\\nu$', 'yscale': 'log'}
+                ],
+                legends_kw={1: {'loc': 'ur', 'ncols': 1}}
+        )
+
+
 powerlaws = NodeFigureFormat(
                 subplots=None,
                 fig_format={'ylabel':'Powerlaw index $s$'},
@@ -33,6 +45,17 @@ histsandpowerlaw = NodeFigureFormat(
                 subplots={'ncols': 3},
                 axs_format=[
                         {'xlabel': '$x$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()},
+                        {'xscale': 'log', 'xlabel': '$p/p_\\textrm{inj}$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()}
+                ],
+                legends_kw={1: {'loc': 'ur', 'ncols': 1}}
+        )
+
+histsandpowerlaw2 = NodeFigureFormat(
+                subplots={'array' : [[1, 3, 5], [2, 4, 5]]},
+                axs_format=[
+                        {'xlabel': '$x$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()},
+                        {'xlabel': '$x$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()},
+                        {'xscale': 'log', 'xlabel': '$p/p_\\textrm{inj}$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()},
                         {'xscale': 'log', 'xlabel': '$p/p_\\textrm{inj}$', 'yscale': 'log', 'ylabel':'particle number density', 'xformatter': pplt.SciFormatter(), 'yformatter': pplt.SciFormatter()}
                 ],
                 legends_kw={1: {'loc': 'ur', 'ncols': 1}}

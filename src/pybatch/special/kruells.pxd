@@ -58,3 +58,12 @@ cdef extern from "batch_kruells.h":
 
     cdef cppclass BatchAchterberg1(PseudoParticleBatch):
         BatchAchterberg1(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg1KPPC(PseudoParticleBatch):
+        BatchAchterberg1KPPC(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2(PseudoParticleBatch):
+        BatchAchterberg2(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2KPPC(PseudoParticleBatch):
+        BatchAchterberg2KPPC(map[string, double] params) except +

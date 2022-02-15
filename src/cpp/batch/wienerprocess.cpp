@@ -12,7 +12,7 @@ WienerProcess::WienerProcess(int ndim, std::vector<uint64_t> seeds) : Stochastic
     _dist = std::normal_distribution<double>(0.0);
 }
 
-Eigen::VectorXd WienerProcess::next(double timestep){
+Eigen::VectorXd WienerProcess::next(){
     if (_unseeded){
         throw std::logic_error("next() cannot be called on an unseeded process. Make a copy of the process providing enough seeds.");
     }
@@ -20,7 +20,7 @@ Eigen::VectorXd WienerProcess::next(double timestep){
     Eigen::VectorXd v(_ndim);
 
     for (int i = 0; i < _ndim; i++){
-        v(i) = _dist(_rngs.at(i)) * sqrt(timestep);
+        v(i) = _dist(_rngs.at(i));
     }
 
     return v;

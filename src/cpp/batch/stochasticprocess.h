@@ -10,7 +10,8 @@ class StochasticProcess {
 
     public:
         StochasticProcess(int ndim, std::vector<uint64_t> seeds = {});
-        virtual Eigen::VectorXd next(double timestep) = 0;
+        virtual ~StochasticProcess() = default;
+        virtual Eigen::VectorXd next() = 0;
         virtual StochasticProcess *copy(std::vector<uint64_t> seeds) = 0;
 };
 

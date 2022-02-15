@@ -243,3 +243,48 @@ cdef class PyBatchAchterberg1(PyPseudoParticleBatch):
             tmp = <BatchAchterberg1 *>self._batch;
             del tmp
             self._batch = NULL
+
+cdef class PyBatchAchterberg1KPPC(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg1KPPC(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg1KPPC *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg1KPPC *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg1KPPC *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg1KPPC *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2KPPC(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2KPPC(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2KPPC *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2KPPC *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2KPPC *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2KPPC *>self._batch;
+            del tmp
+            self._batch = NULL

@@ -28,7 +28,7 @@ param = {
           'r' : 4,
           'x0' : 0,
           'y0' : 1,
-          't_inj' : 2,
+          't_inj' : 0.5,
           'Tmax' : 10000,
           'V' : 1,
           'Ls' : 1,
@@ -47,15 +47,27 @@ pls = PowerlawSeries(chain, var, cb,
             callback_kwargs={'param': param, 'other_param': other_param}
         )
 
-nfmt = NodeFigureFormat(base=formats.histsandpowerlaw, fig_legend_kw={'loc': 'b', 'ncols': 6, 'order': 'F'}, axs_format={2: dict(xlabel='$\\epsilon$', ylabel='Powerlaw index $s$')})
-nfmt.legends_kw = {0: None, 2: {}}
+axs_format = SliceDict()
+axs_format[4] = dict(xlabel='$\\epsilon$', ylabel='Powerlaw index $s$', xscale='log')
+axs_format[slice(None, None, None)] = dict(toplabels=('Spatial distribution', 'Momentum distribution', 'Powerlaw indizes'), leftlabels=('CES', 'KPPC'))
+nfmt = NodeFigureFormat(base=formats.histsandpowerlaw2, fig_legend_kw={'loc': 'b', 'ncols': 6, 'order': 'F'}, axs_format=axs_format, legends_kw={0: None, 1: None, 2: None})
 nfig = NodeFigure(nfmt)
 nfig.format(suptitle='Fig. 2 of Achterberg/Schure')
-nfig[2].format(xscale='log')
 chain_x, chain_p = pls.histogram_chains
+
+memo = {}
+kppc_cls = PyBatchAchterberg1KPPC
+chain_x_kppc = chain_x.copy("kppc", last_kwargs={'batch_cls': kppc_cls}, memo=memo)
+chain_p_kppc = chain_p.copy("kppc", last_kwargs={'batch_cls': kppc_cls}, memo=memo)
+datarow_kppc = pls.datarow_chain.copy("kppc", last_parents={'batch_cls': kppc_cls}, memo=memo)
+
 nfig.add(chain_x, 0, plot_on='spectra')
-nfig.add(chain_p, 1, plot_on='spectra')
-nfig.add(pls.datarow_chain, 2)
-nfig.pad(0.2, 2)
+nfig.add(chain_p, 2, plot_on='spectra')
+nfig.add(chain_x_kppc, 1, plot_on='spectra')
+nfig.add(chain_p_kppc, 3, plot_on='spectra')
+nfig.add(pls.datarow_chain, 4)
+nfig.add(datarow_kppc, 4)
+nfig.pad(0.2, 4)
+#nfig.show_nodes("achterberg_tree.pdf")
 nfig.savefig("figures/{}.pdf".format(name), fig_legend_kw={'handles' : chain_p.handles_complete_tree})
 
