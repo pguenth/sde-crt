@@ -14,6 +14,7 @@ class TrajectoryBoundary {
         virtual bool _check(const SpaceTimePoint& p) const = 0;
 
     public:
+        virtual ~TrajectoryBoundary() = default;
         void replace(SpaceTimePoint& particle_state) const; 
 };
 

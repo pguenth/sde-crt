@@ -14,6 +14,7 @@ class PseudoParticleState;
 // for mirroring boundaries etc. see TrajectoryBoundary
 class TrajectoryBreakpoint {
     public:
+        virtual ~TrajectoryBreakpoint() = default;
         virtual BreakpointState check(const SpaceTimePoint& p) const = 0;
 
         // estimates the maximum number of steps the pseudo particle might need

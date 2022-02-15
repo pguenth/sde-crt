@@ -13,6 +13,7 @@ class SpaceTimePoint;
 class TrajectoryIntegrator {
     public:
         virtual double integrate(trajectory_t trajectory) const = 0;
+        virtual ~TrajectoryIntegrator() = default; 
 };
 
 class LinearIntegrator : public TrajectoryIntegrator {
@@ -29,6 +30,7 @@ class LinearIntegrator : public TrajectoryIntegrator {
 //template <class R>
 class TrajectoryLiveIntegrator {
     public:
+        virtual ~TrajectoryLiveIntegrator() = default;
         virtual void integrate(const SpaceTimePoint& p, double timestep) = 0;
         virtual double value() const = 0;
         virtual TrajectoryLiveIntegrator* clone() const = 0;
@@ -40,6 +42,7 @@ class TrajectoryLiveIntegrator {
 template <class D>
 class TrajectoryLiveIntegratorB : public TrajectoryLiveIntegrator {
     public:
+        virtual ~TrajectoryLiveIntegratorB() = default;
         virtual TrajectoryLiveIntegrator* clone() const {
             return new D(static_cast<const D&>(*this));
         }
