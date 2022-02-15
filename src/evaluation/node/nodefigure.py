@@ -15,7 +15,11 @@ class SliceDict(MutableMapping):
         slices as keys by reducing them
         """
         self._d = {}
-        self.update(dict(*args, **kwargs))
+        if len(args) == 1 and type(args[0]) is type(self):
+            self.update(args[0])
+            self.update(dict(**kwargs))
+        else:
+            self.update(dict(*args, **kwargs))
 
     @staticmethod
     def _transform_key(key):
@@ -44,6 +48,17 @@ class SliceDict(MutableMapping):
                     yield k
             else:
                 yield k
+
+    def __str__(self):
+        s = ""
+        for k, v in self.items():
+            s += "{}: {}, ".format(k, v)
+
+        if s == "":
+            return "{}"
+        else:
+            return "{" + s[:-2] + "}"
+
 
 
 class NodeFigureFormat:
@@ -136,7 +151,7 @@ class NodeFigureFormat:
         """
         new = copy.deepcopy(base)
         for extend_k, extend_d in extend.items():
-            if extend_d is None:
+            if extend_d is None and extend_k in new:
                 del new[extend_k]
             elif extend_k in new:
                 new[extend_k] |= extend_d
@@ -277,7 +292,7 @@ class NodeFigure:
         legend_kw and legends_kw work exactly like NodeFigureFormat's equally
         named parameters. If one is set for this method, NodeFigureFormat's 
         parameters are both overridden. See in NodeFigureFormat for more
-        information.
+        information. WARNING: At the moment those two parameters are ignored
 
         """
         if savefig_args is None:
@@ -285,11 +300,11 @@ class NodeFigure:
 
         self.execute()
 
-        if not legend_kw is None or not legends_kw is None:
-            legends_kw_extend = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
-            legends_kw = NodeFigureFormat._slice_dict_merge(self._legends_kw, legends_kw_extend)
-        else:
-            legends_kw = self._legends_kw
+        #if not legend_kw is None or not legends_kw is None:
+        #    legends_kw_extend = NodeFigureFormat._multi_param_parse(legends_kw, legend_kw)
+        #    legends_kw = NodeFigureFormat._slice_dict_merge(self._legends_kw, legends_kw_extend)
+        #else:
+        legends_kw = self._legends_kw
 
         for ax_key, kws in legends_kw.items():
             if not kws is None:

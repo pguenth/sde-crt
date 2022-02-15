@@ -1,5 +1,6 @@
 import numpy as np
 import proplot as pplt
+from matplotlib.lines import Line2D
 import logging
 import time
 import argparse
@@ -16,14 +17,21 @@ from evaluation.helpers import *
 from evaluation.extractors import *
 from evaluation.exporters import *
 
+import astropy.units as u
+import astropy.constants as constants
+from astropy.coordinates import Distance
+
 import formats
 import chains
 from node.nodefigure import NodeFigure
 from node.cache import PickleNodeCache
-from node.special import PowerlawNode, PointsNodeCache
+from node.special import *
+from node.node import *
+
 
 logging.basicConfig(level=logging.INFO, #filename='log/tests_log_{}.log'.format(sys.argv[1]),
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.getLogger('node.node').setLevel(logging.DEBUG)
 
 # for new chain based experiments
 figdir = 'figures/ex'
@@ -717,7 +725,124 @@ def kruells9a1():
     nfig.add(histosetx, 0)
     nfig.add(histosetp, 1)
     nfig.savefig(figdir + '/' + name + '.pdf')
+
+"""
+generate synchrotron spectrum
+"""
+def kruells9b():
+    name = inspect.currentframe().f_code.co_name
+    param = { 'Xsh' : 1.5,
+              'beta_s' : 0.9,
+              'r' : 4,
+              'dt' : 0.8,
+              't_inj' : 0.01,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'q' : 5
+            }
+    # xdiff = 1.8, xadv = 1.17, a (Webb, Kruells) = approx 9
+
+    times = np.array([200, 2000, 5000])
+
+    cache = PickleNodeCache(cachedir, name)
+    histosetx, histosetp, powerlaw = chains.get_chain_times_maxpl(PyBatchKruells9, cache, param, times, confine_x=100, bin_count=30, plot_on="spectra")
+    transform = MomentumCount('mc', [powerlaw.parents['dataset']], plot=False, cache=cache, p_inj=100*constants.m_e*constants.c)
     
+    nu_range = np.logspace(10, 20, 100) * u.Hz
+    model_params = dict(delta_D=10, z=Distance(1e27, unit=u.cm).z, B=1 * u.G, d_L=1e27 * u.cm, R_b=1e16 * u.cm)
+    radiation_params = dict(plot=True, model_params=model_params, nu_range=nu_range, gamma_integrate=np.logspace(1, 9, 20), cache=cache)
+    synchrotronflux = SynchrotronExactAgnPy('synchro', {'N_data' : transform}, **radiation_params)
+    synchrotronfluxdelta = SynchrotronDeltaApproxAgnPy('synchrodelta', {'N_data' : transform}, **radiation_params)
+    sscflux = SynchrotronSelfComptonAgnPy('ssc', {'N_data' : transform}, **radiation_params)
+
+    nfig = NodeFigure(formats.doublehistSED)
+    nfig.add(histosetx, 0, plot_on="spectra")
+    nfig.add(histosetp, 1, plot_on="spectra")
+    nfig.add(powerlaw, 1, plot_on="spectra")
+    nfig.add(synchrotronflux, 2)
+    nfig.add(synchrotronfluxdelta, 2)
+    nfig.add(sscflux, 2)
+    nfig[2].format(ylim=(1e-14, 1e-11))
+    nfig.savefig(figdir + '/' + name + '.pdf')
+
+"""
+generate synchrotron spectrum
+different k_syn
+"""
+def kruells9b1():
+    name = inspect.currentframe().f_code.co_name
+    param = { 'Xsh' : 1.5,
+              'beta_s' : 0.9,
+              'r' : 4,
+              'dt' : 0.8,
+              't_inj' : 0.01,
+              'k_syn' : 0.005,
+              'x0' : 0,
+              'y0' : 1,
+              'q' : 5,
+              'Tmax' : 2000
+            }
+    # xdiff = 1.8, xadv = 1.17
+
+    ksyn = [0, 0.0001, 0.0005]
+    param_sets = {'k_syn={}'.format(ks) : {'param' : param | {'k_syn': ks}} for ks in ksyn}
+
+    cache = PickleNodeCache(cachedir, name)
+    print(isinstance(cache, KwargsCacheMixin))
+    batch = BatchNode('batch', batch_cls=PyBatchKruells9, cache=cache, ignore_cache=False)
+    points = PointNode('points', {'batch' : batch}, cache=cache, ignore_cache=False)
+
+    points_range = {}
+    for n, kw in param_sets.items():
+        points_range[n] = {'points' : points.copy(n, last_kwargs=kw)}
+
+    valuesx = ValuesNode('valuesx', index=0, cache=cache, ignore_cache=False)
+    valuesp = ValuesNode('valuesp', index=1, cache=cache, ignore_cache=False,
+            confine_range=[(0, -100, 300)],
+            confinements=[(0, lambda x: np.abs(x) <= 100)]
+        )
+
+    histo_opts = {'bin_count' : 50, 'plot' : 'spectra', 'cache' : cache, 'ignore_cache' : False, 'label' : '$k_\\mathrm{{syn}}={k_syn}$'} 
+    histogramx = HistogramNode('histox', {'values' : valuesx}, log_bins=False, normalize='width', **histo_opts)
+    histogramp = HistogramNode('histop', {'values' : valuesp}, log_bins=True, normalize='density', **histo_opts)
+    
+    nu_range = np.logspace(10, 25, 100) * u.Hz
+    p_inj = 100 * constants.m_e * constants.c
+    gamma_integrate = np.logspace(1, 9, 20)
+    model_params = dict(delta_D=10, z=Distance(1e27, unit=u.cm).z, B=1 * u.G, d_L=1e27 * u.cm, R_b=1e16 * u.cm)
+
+    def cb(model_params, batch_params):
+        k_syn = batch_params['k_syn']
+        B = (constants.m_e * constants.c / constants.e.si)**2 * np.sqrt(6 * np.pi * constants.eps0 * k_syn)
+        B_cgs = B * np.sqrt(4 * np.pi / constants.mu0)
+        return model_params# | {'B' : B_cgs}
+
+    radiation_params = dict(plot=True, model_params=model_params, model_params_callback=cb, nu_range=nu_range, gamma_integrate=gamma_integrate, cache=cache, ignore_cache=False)
+    transform = MomentumCount('mc', [histogramp], plot=False, cache=cache, p_inj=p_inj)
+    synchrotronflux = SynchrotronExactAgnPy('synchro', {'N_data' : transform}, **radiation_params)
+    synchrotronfluxdelta = SynchrotronDeltaApproxAgnPy('synchrodelta', {'N_data' : transform}, plot_kwargs={'linestyle': 'dashed', 'alpha': 0.6}, **radiation_params)
+    sscflux = SynchrotronSelfComptonAgnPy('ssc', {'N_data' : transform}, plot_kwargs={'linestyle': 'dotted'}, **radiation_params)
+    fluxes = NodeGroup('fluxgroup', [synchrotronflux, synchrotronfluxdelta, sscflux])
+
+    histosetx = copy_to_group('groupx', histogramx, last_parents=points_range)
+    fluxset = copy_to_group('groupflux', fluxes, last_parents=points_range)
+    histosetp = NodeGroup('groupp', fluxset.search_parents_all('histop'))
+
+    nfig = NodeFigure(formats.doublehistSED)
+    nfig.add(histosetx, 0, plot_on="spectra")
+    nfig.add(histosetp, 1, plot_on="spectra")
+    nfig.add(fluxset, 2)
+    #nfig.show_nodes("synchronodes.pdf")
+    #nfig.add(synchrotronfluxdelta, 2)
+    #nfig.add(sscflux, 2)
+    nfig[2].format(ylim=(1e-14, 1e-8))
+    nfig[2].legend(ncols=1, loc='r', handles=[
+        Line2D([], [], label='Synchrotron', color='k'),
+        Line2D([], [], linestyle='dashed', alpha=0.6, label='SSC (delta approx.)', color='k'),
+        Line2D([], [], linestyle='dashdot', label='SSC', color='k')])
+    nfig.savefig(figdir + '/' + name + '.pdf')
+
 """
 dkappa/dx from eq.(19)
 """
@@ -1121,7 +1246,8 @@ if __name__ == '__main__':
     #kruells7b()
     #kruells6a()
     #kruells6c()
-    kruells9()
+    #kruells9b()
+    kruells9b1()
     #kruells9a()
     #kruells9a1()
 

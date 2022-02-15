@@ -1,7 +1,16 @@
 import pickle
 import logging
 from abc import abstractmethod, ABC
+from collections.abc import Sequence, Mapping, MutableSequence, MutableMapping
+import numpy as np
 from pathlib import Path
+from astropy.units import Quantity, allclose
+from enum import Enum, auto
+import copy
+
+class IsUnpicklable(Enum):
+    GENERIC = auto()
+    CALLABLE = auto()
 
 class CacheException(Exception):
     pass
@@ -50,7 +59,131 @@ class NodeCache:
         """
         raise NotImplementedError
 
-class FileCache(NodeCache):
+class KwargsCacheMixin:
+    def store_kwargs(self, name, kwargs):
+        """
+        Store the kwargs. If this method is overridden (i.e. your cache supports
+        storage of kwargs) load_kwargs must be overridden too.
+        """
+        raise NotImplementedError
+
+    def load_kwargs(self, name):
+        """
+        Load the kwargs. If this method is overridden (i.e. your cache supports
+        storage of kwargs) store_kwargs must be overridden too.
+        """
+        raise NotImplementedError
+
+    def kwargs_changed(self, name, kwargs):
+        """
+        Return True if the cached kwargs differ from the kwargs that have been stored
+        and store the new kwargs (overriding the old)
+
+        Return False if they are the same.
+
+        If no kwargs can be cached (NodeCache not supporting it) always return False
+        """
+        try:
+            old_kw = self.load_kwargs(name)
+        except NotImplementedError:
+            return False
+        except CacheException:
+            logging.warning("No stored kwargs found. This may be the case because of migration from cached nodes that were cached without kwargs. This warning will be removed in the future and instead raise an error.")
+            kw = self._cleancopy(kwargs)
+            self.store_kwargs(name, kw)
+            return False
+
+        new_kw = self._cleancopy(kwargs)
+        #print(name, old_kw, new_kw)
+        if self._compare_dict_rec(old_kw, new_kw):
+            return False
+        else:
+            self.store_kwargs(name, new_kw)
+            return True
+
+    def replace_kwargs_item(self, item):
+        """
+        If any possible content type of a kwargs dict (or sub-lists/dicts)
+        is not cacheable by the class using this mixin, override this method
+        so that those objects get overriden with some (arbitrary) placeholder.
+
+        If not overridden nothing happens.
+        """
+        return item
+
+    def _cleancopy(self, kwargs):
+        kw = copy.deepcopy(kwargs)
+        self._clean_kwargs(kw)
+        return kw
+
+    def _clean_kwargs(self, item):
+        """
+        Cleans a (possible nested dict/list structured) item by replacing all
+        not-list/dict items using :py:meth:`_replace_kwargs_item`
+        """
+        if isinstance(item, MutableMapping):
+            for k, v in item.items():
+                x = self._clean_kwargs(v)
+                if not x is None:
+                    item[k] = x
+        elif isinstance(item, str):
+            return self.replace_kwargs_item(item)
+        elif isinstance(item, MutableSequence):
+            for i, v in enumerate(item):
+                x = self._clean_kwargs(v)
+                if not x is None:
+                    item[i] = x
+        else:
+            return self.replace_kwargs_item(item)
+        
+    def _compare_dict_rec(self, old_kw, kwargs):
+        if old_kw is None:
+            if kwargs is {}:
+                return True
+            else:
+                return False
+
+        for k, v in kwargs.items():
+            if not k in old_kw:
+                return False
+            elif not self._dynamic_value_compare(old_kw[k], v):
+                return False
+
+        return True
+
+    def _dynamic_value_compare(self, v1, v2):
+        """
+        This method compares two objects handling various types
+            - np.ndarray
+            - dict like
+            - list like
+            - everything else supporting __eq__
+
+        """
+        if not type(v1) is type(v2):
+            return False
+        if isinstance(v1, Quantity):
+            return repr(v1.unit) == repr(v2.unit) and allclose(v1.value, v2.value)
+        elif isinstance(v1, np.ndarray):
+            return np.array_equal(v1, v2)
+        elif isinstance(v1, Mapping):
+            return self._compare_dict_rec(v1, v2)
+        elif isinstance(v1, str):
+            # str before Sequence because string is a sequence
+            return v1 == v2
+        elif isinstance(v1, Sequence):
+            if not len(v1) == len(v2):
+                return False
+            for v1_, v2_ in zip(v1, v2):
+                if not self._dynamic_value_compare(v1_, v2_):
+                    return False
+            return True
+        else:
+            return v1 == v2
+
+
+
+class FileCache(KwargsCacheMixin, NodeCache):
     """
     Provides methods for caching and restoring with pickle.
 
@@ -80,22 +213,28 @@ class FileCache(NodeCache):
     def _write_file(file, obj):
         raise NotImplementedError
 
-    def load(self, name):
+    def load_kwargs(self, name):
+        return self.load(name + "_kwargs", loglevel=logging.DEBUG)
+
+    def store_kwargs(self, name, kwargs):
+        self.store(name + "_kwargs", kwargs, loglevel=logging.DEBUG)
+
+    def load(self, name, loglevel=logging.INFO):
         try:
             with open(self.cache_path(name), mode='rb' if self.byte_mode else 'r') as cachefile:
-                logging.info("Using cached data from {} for {}".format(self.cache_path(name), name))
+                logging.log(loglevel, "Using cached data from {} for {}".format(self.cache_path(name), name))
                 content = type(self)._read_file(cachefile)
-                logging.info("Cached data loaded")
+                logging.log(loglevel, "Cached data loaded")
         except IOError:
             raise CacheException("Cannot read the cache {} in {}".format(name, self.cache_path(name)))
 
         return content
 
-    def store(self, name, data):
+    def store(self, name, data, loglevel=logging.INFO):
         with open(self.cache_path(name), mode='wb' if self.byte_mode else 'w') as cachefile:
-            logging.info("Storing data in {} for {}".format(self.cache_path(name), name))
+            logging.log(loglevel, "Storing data in {} for {}".format(self.cache_path(name), name))
             type(self)._write_file(cachefile, data)
-            logging.info("Generated data is stored")
+            logging.log(loglevel, "Generated data is stored")
 
     def get(self, name, callback, clear):
         cache_path = self.cache_path(name)
@@ -139,3 +278,11 @@ class PickleNodeCache(FileCache):
     @staticmethod
     def _write_file(file, obj):
         pickle.dump(obj, file)
+
+    def replace_kwargs_item(self, item):
+        try:
+            pickle.dumps(item)
+        except (pickle.PicklingError, AttributeError):
+            return IsUnpicklable.GENERIC
+        else:
+            return item

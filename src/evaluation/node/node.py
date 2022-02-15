@@ -5,6 +5,7 @@ import logging
 from functools import wraps
 from itertools import count
 import matplotlib.axes
+from .cache import KwargsCacheMixin
 
 logger = logging.getLogger(__name__)
 
@@ -562,8 +563,13 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             self._log_debug("Needs data because no cached data exists")
             this_need_data = True
         else:
-            self._log_debug("Does not need data")
-            this_need_data = False
+            # cache exists, check kwargs
+            if isinstance(self.cache, KwargsCacheMixin) and self.cache.kwargs_changed(self.name, self.ext):
+                self._log_debug("The stored kwargs are not up to date, so the cache is ignored. Current kwargs stored.")
+                this_need_data = True
+            else:
+                self._log_debug("Does not need data")
+                this_need_data = False
 
         self._update_common(common, kwargs)
 
@@ -622,6 +628,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
             if not (type(self._plot_handles) is list or self._plot_handles is None):
                 self._plot_handles = [self._plot_handles]
+
+            # bodgy: store the color of the first returned handle
+            if not self._plot_handles[0] is None and self._color is None:
+                self._color = self._plot_handles[0].get_color()
 
         return v
 
@@ -751,7 +761,6 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     @property
     def handles_complete_tree(self):
         m = self.map_tree(lambda n: n.handles)
-        print(m)
         
         l = []
         for x in m.values():
@@ -881,7 +890,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         Colors are stored in a instance variable per node and the color of the
         first parent found that has this instance variable set is returned.
 
-        If no color is found, None is returned
+        If no color is found, a new one is returned 
         """
         if not self._color is None:
             return self._color
