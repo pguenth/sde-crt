@@ -446,18 +446,18 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         See also: :py:meth:`__init__` parameter *plot*
         """
-        if isinstance(self._plot, matplotlib.axes.Axes):
+        if isinstance(self._do_plot, matplotlib.axes.Axes):
             return self._ax
         else:
-            return self._plot
+            return self._do_plot
 
     @plot_on.setter
     def plot_on(self, on):
         if isinstance(on, matplotlib.axes.Axes):
-            self._plot = True
+            self._do_plot = True
             self._ax = on
         else:
-            self._plot = on
+            self._do_plot = on
             self._ax = None
 
     def in_plot_group(self, group):
@@ -467,19 +467,23 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             information.
         :rtype: bool
         """
-        if self._plot is True or self._plot is False:
-            return self._plot
+        if self._do_plot is True or self._do_plot is False:
+            return self._do_plot
 
-        if isinstance(self._plot, list):
+        if isinstance(self._do_plot, list):
             if isinstance(group, list):
-                return len([g for g in group if g in self._plot]) >= 1
+                return len([g for g in group if g in self._do_plot]) >= 1
             else:
-                return group in self._plot
+                return group in self._do_plot
         else:
             if isinstance(group, list):
-                return self._plot in group
+                return self._do_plot in group
             else:
-                return self._plot == group or self._plot is group
+                return self._do_plot == group or self._do_plot is group
+
+    @staticmethod
+    def _default_common_dict():
+        return {'_kwargs': {}, '_kwargs_by_type': {}, '_kwargs_by_instance': {}, '_colors': {}}
 
     def __call__(self, ax=None, plot_on=None, memo=None, **kwargs):
         """
@@ -505,13 +509,37 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             (2) all nodes
         :rtype: list
         """
-        common = {'_kwargs': {}, '_kwargs_by_type': {}, '_kwargs_by_instance': {}, '_colors': {}}
+        common = self._default_common_dict()
 
         memo = [] if memo is None else memo
 
-        self._do(ax, plot_on, False, common, memo, kwargs)
+        self._plot(ax, plot_on, common, memo, kwargs)
 
         return memo
+
+    def data_extra(self, common=None, **kwargs):
+        """
+        The same as :py:attr:`data` but allowing for kwargs and
+        supplying a common dict (with gets filled eventually)
+
+        :return: returned object from :py:meth:`do`
+        """
+        if common is None:
+            common = self._default_common_dict()
+        else:
+            common |= {k : v for k, v in self._default_common_dict().items() if k not in common}
+
+        return self._data(True, common, kwargs)
+
+    @property
+    def data(self):
+        """
+        Get the data of the node, eventually calling parent node's do method
+        and using RAM cache
+
+        :return: returned object from :py:meth:`do`
+        """
+        return self.data_extra()
 
     def set(self, **kwargs):
         """
@@ -596,7 +624,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
                 self._log_debug("Does not need data")
                 return False
 
-    def _maybe_fill_parent_data(self, ax, plot_group, this_need_data, common, memo, kwargs):
+    def _maybe_fill_parent_data(self, this_need_data, common, kwargs):
         """
         Fills parent data but allows parents to return None if this_need_data is False.
         This function is for checking wether any :py:class:`EvalNode`s see the need
@@ -608,14 +636,14 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         self._log_debug("Traversing the tree upwards")
         must_fill = False # track if any parents return data (not None)
         for k, p in self.parents_iter:
-            maybe_data = p._do(ax, plot_group, this_need_data, common, memo, kwargs)
+            maybe_data = p._data(this_need_data, common, kwargs)
             assert not (maybe_data is None and this_need_data) # if we requested data, but recieved None, quit
             self._parent_data[k] = maybe_data
             must_fill = must_fill or not maybe_data is None
 
         return must_fill
 
-    def _fill_parent_data(self, plot_group, common, memo, kwargs):
+    def _fill_parent_data(self, common, kwargs):
         """
         Fills parent data (that is still empty) but 
          * no plotting
@@ -629,46 +657,19 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         self._log_debug("Some parents returned data, so we assume regeneration is neccessary and traverse the tree a second time to get all data")
         for k, p in self.parents_iter:
             if self._parent_data[k] is None:
-                self._parent_data[k] = p._do(None, plot_group, True, common, memo, kwargs)
+                self._parent_data[k] = p._data(True, common, kwargs)
 
-    def _maybe_plot(self, v, plot_on, common, kwargs):
-        if v is None:
-            # if there is need for a plot, but no data available at this point
-            # we can use the cache for plotting since there are no updates
-            self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
-            v = self._cacheload_v()
-        else:
-            # plot with available data
-            self._log_debug("Plot the node")
-
-        self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
-
-        if not (type(self._plot_handles) is list or self._plot_handles is None):
-            self._plot_handles = [self._plot_handles]
-
-        # bodgy: store the color of the first returned handle
-        if not self._plot_handles[0] is None and self._color is None:
-            self._color = self._plot_handles[0].get_color()
-
-        return v
-
-    def _data(self, force, common, memo, kwargs):
-        pass
-
-
-    def _do(self, ax, plot_group, need_data, common, memo, kwargs):
-        this_need_data = self._check_data_needed()
-
-        self._update_common(common, kwargs)
-
+    def _data(self, need_data, common, kwargs):
         # request data from parents using this info
-        must_fill = self._maybe_fill_parent_data(ax, plot_group, this_need_data, common, memo, kwargs)
+        this_need_data = self._check_data_needed()
+        self._update_common(common, kwargs)
+        must_fill = self._maybe_fill_parent_data(this_need_data, common, kwargs)
         if must_fill:
             # if none or some (but not all) parents returned None (= (>=1 parent returned data))
             # we force those to return us data
             # if there is no cache, we will always land here
             # because we requested data from all parents (this_need_data == True in this case)
-            self._fill_parent_data(plot_group, common, memo, kwargs)
+            self._fill_parent_data(common, kwargs)
 
             self._log_debug("Requesting regeneration or RAM cache retrieval of data")
             v = self._generate_v(common, kwargs)
@@ -692,15 +693,32 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             v = None
             self._log_debug("No data retrieval neccessary from request or parents")
 
+        return v
+
+    def _plot(self, ax, plot_group, common, memo, kwargs):
+        for k, p in self.parents_iter:
+            p._plot(ax, plot_group, common, memo, kwargs)
+
         if self.in_plot_group(plot_group) and not self in memo:
             memo.append(self)
             plot_on = self._ax if not self._ax is None else ax
-            self._maybe_plot(v, plot_on, common, kwargs)
             # modification: at this place, when v == None, v was loaded from 
             # and returned, so child notes regenerated.
             # this has been removed but I dont know if it was actually senseful
+            self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
+            v = self._data(True, common, kwargs)
 
-        return v
+            self._log_debug("Plot the node")
+
+            self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
+
+            if not (type(self._plot_handles) is list or self._plot_handles is None):
+                self._plot_handles = [self._plot_handles]
+
+            # bodgy: store the color of the first returned handle
+            if not self._plot_handles[0] is None and self._color is None:
+                self._color = self._plot_handles[0].get_color()
+
 
     def map_parents(self, callback):
         """
