@@ -49,6 +49,17 @@ def dict_or_list_iter(obj):
     else:
         raise TypeError("obj must be either dict or list")
 
+def dict_or_list_map(obj, func):
+    if type(obj) is list:
+        return [func(n) for n in obj]
+    elif type(obj) is dict:
+        return {k : func(n) for k, n in obj.items()}
+    else:
+        raise TypeError("obj must be either dict or list")
+
+class EmptyParentKey:
+    pass
+
 class ColorCycle:
     def __init__(self, colors):
         self.colors = colors
@@ -111,8 +122,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     :type name: string
 
     :param parents: The parents of this *EvalNode*. Can also be understood as
-        the data sources. If a single *EvalNode* instance is passed, expect a
-        list containing a single item for *parent_data*, else *parent_data*
+        the data sources. *parent_data*
         will have the same structure as this parameter with *EvalNodes*
         exchanged for the return value of :py:meth:`EvalNode.do`
     :type parents: list or dict or :py:class:`EvalNode`
@@ -205,15 +215,16 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         if self.parents is None:
             self.parents = parents
 
+        # access _parent_data keys while iterating by using _set_parent_data and
+        # _get_parent_data to automatically handle the case of only a single parent
         if type(self.parents) is list:
             self._parent_data = [None] * len(self.parents)
         elif type(self.parents) is dict:
             self._parent_data = {}
-        elif isinstance(self.parents, EvalNode):
-            self.parents = [self.parents]
-            self._parent_data = [None]
+        elif isinstance(self.parents, EvalNode) or self.parents is None:
+            self._parent_data = None
         else:
-            raise TypeError("Parents must be either list or dict or EvalNode")
+            raise TypeError("Parents must be either list or dict or EvalNode or NoneType")
 
     @property
     def id(self):
@@ -296,17 +307,27 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             new_parents = [None] * len(self.parents)
         elif type(self.parents) is dict:
             new_parents = {}
+        elif isinstance(self.parents, EvalNode) or self.parents is None:
+            new_parents = None
+        else:
+            raise TypeError("parents have an invalid type")
 
         if self in memo:
             new = memo[self]
         else:
+            is_last_node = True
             for n, p in self.parents_iter:
                 cpy_or_memo = p.copy(name_suffix, plot, ignore_cache, last_parents, last_kwargs, memo=memo)#, **kwargs)
-                new_parents[n] = cpy_or_memo
+                is_last_node = False
+                if n is EmptyParentKey:
+                    # this can only happen once because EmptyParentKey is used only if there's no more than one parents
+                    new_parents = cpy_or_memo
+                else:
+                    new_parents[n] = cpy_or_memo
 
             kwargs_use = copy.deepcopy(self.ext)
 
-            if len(new_parents) == 0:
+            if is_last_node:
                 new_parents = last_parents
 
                 # merge items whose values are dicts
@@ -377,9 +398,12 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     def parents_iter(self):
         """
         :return: An iterator that can be handled uniformly
-            for any type of parents (list or dict).
+            for any type of parents (list or dict or :py:class:`EvalNode`).
             For lists, it is enumerate(:py:attr:`parents`), and for dict
-            it is :py:attr:`parents`.items()
+            it is :py:attr:`parents`.items(). For a single parent of class
+            :py:class:`EvalNode`, an iterator yielding
+            :py:class:`EmptyParentKey`: *parent* is returned so that this
+            property can be used uniformly as iterator.
 
         :rtype: iterator
         """
@@ -387,8 +411,12 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             return enumerate(self.parents)
         elif type(self.parents) is dict:
             return self.parents.items()
+        elif isinstance(self.parents, EvalNode):
+            return {EmptyParentKey: self.parents}.items()
+        elif self.parents is None:
+            return {}.items()
         else:
-            raise TypeError("parents must be either dict or list")
+            raise TypeError("parents must be either dict or list or EvalNode or None")
 
     def is_parent(self, possible_parent):
         """
@@ -399,14 +427,20 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             return possible_parent in self.parents
         elif type(self.parents) is dict:
             return possible_parent in self.parents.values()
+        elif isinstance(self.parents, EvalNode):
+            return possible_parent is self.parents
+        elif self.parents is None:
+            return False
         else:
-            raise TypeError("parents must be either dict or list")
+            raise TypeError("parents must be either dict or list or EvalNode instance or None")
 
     def parents_contains(self, key):
         """
         :return: True if the parents iterator contains an item with the given key.
             For parents stored as list, this is equal to 'key < len(parents)'
             and for parents stored as dict, this is eqal to 'key in parents'
+            If the parents are a single :py:class:`EvalNode` this always returns
+            False.
 
         :rtype: bool
         """
@@ -414,6 +448,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             return key < len(self.parents)
         elif type(self.parents) is dict:
             return key in self.parents
+        elif isinstance(self.parents, EvalNode):
+            return False
+        elif self.parents is None:
+            return False
         else:
             raise TypeError("parents must be either dict or list")
 
@@ -428,6 +466,9 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     @parents.setter
     def parents(self, parents):
         self._parents = parents
+        if not (isinstance(parents, EvalNode) or type(parents) is list or 
+                type(parents) is dict or parents is None):
+            raise TypeError("invalid type for parents (got {})".format(type(parents)))
 
     @property
     def plot_on(self):
@@ -624,6 +665,27 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
                 self._log_debug("Does not need data")
                 return False
 
+    def _set_parent_data(self, key, data):
+        """
+        Sets the parent data of parent with key.
+        Use this method to correctly handle the case of a single parent, i.e.
+        the key being EmptyParentKey as returned by :py:attr:`parents_iter`.
+        This enables concise iterating over the parents
+
+        :return: *None*
+        """
+
+        if key is EmptyParentKey:
+            self._parent_data = data
+        else:
+            self._parent_data[key] = data
+
+    def _get_parent_data(self, key):
+        if key is EmptyParentKey:
+            return self._parent_data
+        else:
+            return self._parent_data[key]
+
     def _maybe_fill_parent_data(self, this_need_data, common, kwargs):
         """
         Fills parent data but allows parents to return None if this_need_data is False.
@@ -638,7 +700,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         for k, p in self.parents_iter:
             maybe_data = p._data(this_need_data, common, kwargs)
             assert not (maybe_data is None and this_need_data) # if we requested data, but recieved None, quit
-            self._parent_data[k] = maybe_data
+            self._set_parent_data(k, maybe_data)
             must_fill = must_fill or not maybe_data is None
 
         return must_fill
@@ -656,8 +718,8 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         """
         self._log_debug("Some parents returned data, so we assume regeneration is neccessary and traverse the tree a second time to get all data")
         for k, p in self.parents_iter:
-            if self._parent_data[k] is None:
-                self._parent_data[k] = p._data(True, common, kwargs)
+            if self._get_parent_data(k) is None:
+                self._set_parent_data(k, p._data(True, common, kwargs))
 
     def _data(self, need_data, common, kwargs):
         # request data from parents using this info
@@ -673,7 +735,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
             self._log_debug("Requesting regeneration or RAM cache retrieval of data")
             v = self._generate_v(common, kwargs)
-        elif len(self.parents) == 0 and this_need_data:
+        elif self.parent_count == 0 and this_need_data:
             # if there are no parents but data is needed
             self._log_debug("This node has no parents but it needs data")
             self._log_debug("Requesting regeneration or RAM cache retrieval of data")
@@ -697,6 +759,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     def _plot(self, ax, plot_group, common, memo, kwargs):
         for k, p in self.parents_iter:
+            self._log_debug("[_plot] traversing tree upwards")
             p._plot(ax, plot_group, common, memo, kwargs)
 
         if self.in_plot_group(plot_group) and not self in memo:
@@ -705,10 +768,10 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             # modification: at this place, when v == None, v was loaded from 
             # and returned, so child notes regenerated.
             # this has been removed but I dont know if it was actually senseful
-            self._log_debug("Request loading data from cache or RAM cache anyways for plotting")
+            self._log_debug("[_plot] Request loading data from cache or RAM cache anyways for plotting")
             v = self._data(True, common, kwargs)
 
-            self._log_debug("Plot the node")
+            self._log_debug("[_plot] Plot the node")
 
             self._plot_handles = self.plot(v, plot_on, common, **(self.ext | kwargs))
 
@@ -719,24 +782,30 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             if not self._plot_handles[0] is None and self._color is None:
                 self._color = self._plot_handles[0].get_color()
 
-
-    def map_parents(self, callback):
+    def map_parents(self, callback, call_on_none=False):
         """
         Executes callback for every parent of this instance
         
         :param callback: The :py:class:`Callable` to be executed
         :type callback: :py:class:`Callable` (:py:class:`EvalNode`) -> object
 
+        :param call_on_none: If this :py:class:`EvalNode` has no parents
+            call the callback with *None* as argument.
+        :type call_on_none: :py:class:`bool`, Default: *False*
+
         :return: object with structure like :py:attr:`parents` but the nodes
             replaced with the objects returned by *callback*
         :rtype: same as :py:attr:`parents`
         """
-        if type(self.parents) is list:
-            return [callback(n) for n in self.parents]
-        elif type(self.parents) is dict:
-            return {k : callback(n) for k, n in self.parents.items()}
+        if isinstance(self.parents, EvalNode):
+            return callback(self.parents)
+        elif self.parents is None:
+            if call_on_none:
+                return callback(None)
+            else:
+                return None
         else:
-            raise TypeError("parents must be either dict or list")
+            return dict_or_list_map(self.parents, callback)
 
     def search_parent(self, starts_with):
         """
@@ -854,6 +923,14 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
         return l
 
+    @property
+    def parent_count(self):
+        if self.parents is None:
+            return 0
+        elif isinstance(self.parents, EvalNode):
+            return 1
+        else:
+            return len(self.parents)
 
     def def_kwargs(self, **kwargs):
         """
@@ -981,7 +1058,9 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
             return self._color
 
         for _, p in self.parents_iter:
-            return p.get_color()
+            p_color = p.get_color()
+            if not p_color is None:
+                return p_color
 
         return None
 
@@ -1016,6 +1095,7 @@ class NodeGroup(EvalNode):
 
 class NodePlotGroup(EvalNode):
     def subclass_init(self, parents, **kwargs):
+        raise TypeError("Using NodePlotGroup is deprecated because it hasn't been updated, will probably not work and I don't know what its purpose was anymore.")
         super().subclass_init(parents, **kwargs)
         self.never_cache = True
 
