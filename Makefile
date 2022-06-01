@@ -54,7 +54,7 @@ bin: $(CXX_OBJS)
 
 clib: dirs libbatch.so libbatch.a 
 
-cython: dirs libbatch.a
+cython: dirs 
 	echo \$asdf
 	python setup.py build_ext --build-lib $(LIB_DIR) --build-temp $(BUILD_DIR)
 

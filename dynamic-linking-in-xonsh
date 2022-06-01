@@ -1,0 +1,7 @@
+either use:
+    $LD_LIBRARY_PATH="lib"
+    python foo.py
+
+or with context manager:
+    with ${...}.swap(LD_LIBRARY_PATH="lib"):
+        python foo.py

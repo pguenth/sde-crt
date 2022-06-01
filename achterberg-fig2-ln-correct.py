@@ -19,8 +19,9 @@ logging.basicConfig(level=logging.INFO,
 
 def cb(this_param, param, other_param):
     dt = other_param['alpha'] / param['V']
-    q = 1 / this_param['epsilon']
-    batch_param = param | {'q' : q, 'dt' : dt}
+    q = param['V'] * other_param['Ldiff'] 
+    Ls = other_param['Ldiff'] * this_param['epsilon']
+    batch_param = param | {'q' : q, 'dt' : dt, 'Ls' : Ls}
     label_fmt_fields = this_param | other_param
     return {'param': batch_param, 'label_fmt_fields': label_fmt_fields}
 
@@ -28,16 +29,16 @@ param = {
           'r' : 4,
           'x0' : 0,
           'y0' : 0,
-          't_inj' : 0.1, # 0.2
+          't_inj' : 1, #0.1, # 0.2
           'Tmax' : 3500,
           'V' : 1,
-          'Ls' : 1,
         }
 other_param = {
-            'alpha' : 0.05,
+          'alpha' : 0.05,
+          'Ldiff' : 1,
         }
 
-name = 'achterberg_fig2_ln'
+name = 'achterberg_fig2_ln_correct'
 cache = PickleNodeCache('pickle', name)
 add_conf = [(1, 0, np.inf)]
 chain = chains.get_chain_powerlaw_datapoint(PyBatchAchterberg2, cache, np.inf, lambda c: c['label_fmt_fields']['epsilon'], histo_opts={'bin_count' : 40}, negate_index=True, log_bins=False, additional_confine_ranges=add_conf)
@@ -46,7 +47,8 @@ chain.map_tree(lambda n: n.set(ln_x=True) , "pl")
 chain.map_tree(lambda n: print(n.plot_on), "pl")
 
 #var = PowerlawSeriesVariable('\\epsilon', 'epsilon', [0.01, 0.02, 0.04, 0.05, 0.08, 0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 1])
-var = PowerlawSeriesVariable('\\epsilon', 'epsilon', [0.01, 0.04, 0.08, 0.2, 0.4, 0.8, 1.0]) #[0.01, 0.05, 0.1, 0.8])[float(sys.argv[1])])
+#var = PowerlawSeriesVariable('\\epsilon', 'epsilon', [0.01, 0.04, 0.08, 0.2, 0.4, 0.8, 1.0]) #[0.01, 0.05, 0.1, 0.8])[float(sys.argv[1])])
+var = PowerlawSeriesVariable('\\epsilon', 'epsilon', [float(sys.argv[1])])
 #var = PowerlawSeriesVariable('\\epsilon', 'epsilon', [0.01 * int(sys.argv[1])])
 pls = PowerlawSeries(chain, var, cb, 
             callback_kwargs={'param': param, 'other_param': other_param}
@@ -65,19 +67,20 @@ chain_x, chain_p = pls.histogram_chains
 datarow = pls.datarow_chain
 datarow.set(label='Cauchy-Euler scheme')
 
-memo = {}
-kppc_cls = PyBatchAchterberg2KPPC
-chain_x_kppc = chain_x.copy("kppc", last_kwargs={'batch_cls': kppc_cls}, memo=memo)
-chain_p_kppc = chain_p.copy("kppc", last_kwargs={'batch_cls': kppc_cls}, memo=memo)
-datarow_kppc = datarow.copy("kppc", last_parents={'batch_cls': kppc_cls}, memo=memo)
-datarow_kppc.set(label='Predictor-corrector scheme')
 
-memo = {}
-implicit_cls = PyBatchAchterberg2Implicit
-chain_x_implicit = chain_x.copy("implicit", last_kwargs={'batch_cls': implicit_cls}, memo=memo)
-chain_p_implicit = chain_p.copy("implicit", last_kwargs={'batch_cls': implicit_cls}, memo=memo)
-datarow_implicit = datarow.copy("implicit", last_parents={'batch_cls': implicit_cls}, memo=memo)
-datarow_implicit.set(label='Implicit Euler scheme')
+def mod_scheme(pls, batch_cls, name, name_human):
+        memo = {}
+        chain_x_old, chain_p_old = pls.histogram_chains
+        datarow_old = pls.datarow_chain
+        chain_x = chain_x_old.copy(name, last_kwargs={'batch_cls': batch_cls}, memo=memo)
+        chain_p = chain_p_old.copy(name, last_kwargs={'batch_cls': batch_cls}, memo=memo)
+        datarow = datarow_old.copy(name, last_parents={'batch_cls': batch_cls}, memo=memo)
+        datarow.set(label=name_human)
+        return datarow, chain_x, chain_p
+
+datarow_semiimplicit, chain_x_semiimplicit, chain_p_semiimplicit = mod_scheme(pls, PyBatchAchterberg2SemiImplicit2, 'semiimplicit', 'Semi-implicit')
+datarow_implicit, chain_x_implicit, chain_p_implicit = mod_scheme(pls, PyBatchAchterberg2Implicit, 'implicit', 'Implicit')
+datarow_kppc, chain_x_kppc, chain_p_kppc = mod_scheme(pls, PyBatchAchterberg2KPPC, 'kppc', 'KPPC')
 
 #memo = {}
 #secondorder_cls = PyBatchAchterberg2SecondOrder
@@ -99,13 +102,6 @@ datarow_implicit.set(label='Implicit Euler scheme')
 #chain_p_semiimplicit = chain_p.copy("semiimplicit", last_kwargs={'batch_cls': semiimplicit_cls}, memo=memo)
 #datarow_semiimplicit = datarow.copy("semiimplicit", last_parents={'batch_cls': semiimplicit_cls}, memo=memo)
 #datarow_semiimplicit.set(label='semiimplicit scheme (vec)')
-
-memo = {}
-semiimplicit_cls = PyBatchAchterberg2SemiImplicit2
-chain_x_semiimplicit2 = chain_x.copy("semiimplicit2", last_kwargs={'batch_cls': semiimplicit_cls}, memo=memo)
-chain_p_semiimplicit2 = chain_p.copy("semiimplicit2", last_kwargs={'batch_cls': semiimplicit_cls}, memo=memo)
-datarow_semiimplicit2 = datarow.copy("semiimplicit2", last_parents={'batch_cls': semiimplicit_cls}, memo=memo)
-datarow_semiimplicit2.set(label='Semiimplicit scheme')
 
 #nfig.add(chain_x, 0, plot_on='spectra')
 #nfig.add(chain_p, 2, plot_on='spectra')
@@ -131,13 +127,10 @@ nfig.add(comparison_node, 4)
 #nfig.add(chain_p_2nd, 3, plot_on='spectra')
 #nfig.add(datarow_2nd, 4)
 
-#nfig.add(chain_x_semiimplicit, 0, plot_on='spectra')
-#nfig.add(chain_p_semiimplicit, 2, plot_on='spectra')
-#nfig.add(datarow_semiimplicit, 4)
+nfig.add(chain_x_semiimplicit, 0, plot_on='spectra')
+nfig.add(chain_p_semiimplicit, 2, plot_on='spectra')
+nfig.add(datarow_semiimplicit, 4)
 
-nfig.add(chain_x_semiimplicit2, 1, plot_on='spectra')
-nfig.add(chain_p_semiimplicit2, 3, plot_on='spectra')
-nfig.add(datarow_semiimplicit2, 4)
 
 nfig.pad(0.2, 4)
 nfig[2].legend()

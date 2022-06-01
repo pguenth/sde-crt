@@ -66,7 +66,11 @@ void PseudoParticleBatch::_construct(std::vector<SpaceTimePoint> starts, PseudoP
 
     _particles = std::vector<PseudoParticle>();
 
-    uint64_t batch_seed = 1234578901234567; 
+    //uint64_t batch_seed = 1234578901234567; 
+    uint64_t batch_seed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    std::cout << "Seed for this batch: " << batch_seed << "\n";
     pcg32_unique seed_rng(batch_seed);
 
     for (auto &s: _starts){
@@ -136,20 +140,54 @@ void *run_wrapper(void *arg){
 
 void PseudoParticleBatch::run_mod(int mod_base, int mod_res){
     int run_count = 0;
-    for (int i = 0; i < count(); i++){
+    //std::cout << "run_count addr: " << &run_count << "\n";
+    int ccount = count();
+    int total_count = ccount / mod_base;
+    int update_status_every = 100;
+    uint64_t start_t = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch())
+            .count();
+    uint64_t now_t;
+    uint64_t eta;
+    uint64_t eta_min;
+    std::stringstream buf;
+
+    // run chunks instead of modulo
+    //int nstart = total_count * mod_res;
+    //int nstop = total_count * (mod_res + 1);
+    //std::cout << "thread " << mod_res << " will run particles from " << nstart << " to " << nstop << "\n";
+
+    //for (int i = nstart; i < nstop; i++){
+    for (int i = 0; i < ccount; i++){
         //std::cout << "thread " << mod_res << " of " << mod_base << " start\n";
+        if (i % update_status_every == 0){
+            // this whole if is status output
+            now_t = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::high_resolution_clock::now().time_since_epoch())
+                    .count();
+            eta = (now_t - start_t) / (run_count + 1) * (total_count - run_count) / 1000;
+            eta_min = eta / 60;
+            eta -= 60 * eta_min;
+            std::cout << "\r" << std::string(buf.str().length(), ' ');
+            buf.str("");
+            buf.clear();
+            buf << "Progress of thread " << mod_res << ": " << run_count << " of " << total_count << " = " << 100 * run_count / total_count << "%; ETA: " << eta_min << "m" << eta << "s";
+            std::cout << "\r" << buf.str();
+            std::cout.flush();
+        }
+
         if (i % mod_base == mod_res){
             //std::cout << "thread " << mod_res << " of " << mod_base << " running particle " << i << "\n";
             run_count++;
             _particles[i].run();
         }
     }
-    std::cout << "thread " << mod_res << " of " << mod_base << " runned " << run_count << " particles\n";
+    std::cout << "\r" << std::string(buf.str().length(), ' ') << "\r";
+    std::cout.flush();
+    //std::cout << "thread " << mod_res << " of " << mod_base << " runned " << run_count << " particles\n";
 }
 
-int PseudoParticleBatch::run(int particle_count){
-    int nthreads = 1;
-
+int PseudoParticleBatch::run(int particle_count = -1, int nthreads = 1){
     std::vector<pthread_t> threads(nthreads);
     std::vector<struct ThreadArgs> thread_args(nthreads);
     for (int i = 0; i < nthreads; i++){

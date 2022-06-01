@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <thread>
+#include <chrono>
 #include "pseudoparticle.h"
 #include <boost/asio/thread_pool.hpp>
 #include <boost/asio/post.hpp>
@@ -84,7 +85,7 @@ class PseudoParticleBatch {
          * @param particle_count the number of particles to run
          * @return the number of finished particles
          */
-        int run(int particle_count = -1);
+        int run(int particle_count/* = -1*/, int nthreads/* = 1*/);
         //int run_some(int particle_count = -1);
         void run_mod(int mod_base, int mod_res);
 

@@ -18,7 +18,7 @@ class PowerlawSeriesVariable:
     values: list
 
 class PowerlawSeries:
-    def __init__(self, chain, variable, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None):
+    def __init__(self, chain, variable, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None, cache=None):
         """
         Creates a series of chains similar to chain with changed parameters.
         The chain is expected to have a parent called 'datapoint' which in turn
@@ -52,6 +52,7 @@ class PowerlawSeries:
             self.label_template = label_template
 
         self.chain = chain
+        self.cache = cache
 
         self._datarow_chain = None
         self._chains = None
@@ -84,7 +85,7 @@ class PowerlawSeries:
     def _get_datarow_chain(self):
         label = self.label_template.format(human_name=self.var.human_name)
         chains = [dp.parents['datapoint'] for dp in self.chains.values()]
-        return ScatterNode('scatter_{}'.format(self.name), chains, label=label, plot=True)
+        return ScatterNode('scatter_{}'.format(self.name), chains, cache=self.cache, label=label, plot=True)
 
     @property
     def datarow_chain(self):
@@ -122,7 +123,7 @@ class PowerlawSeries:
         nfig.savefig(path)
 
 class PowerlawMultiSeries:
-    def __init__(self, chain, variable_rows, variable_points, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None):
+    def __init__(self, chain, variable_rows, variable_points, last_kwargs_callback, name="", last_parents=None, other_values={}, callback_kwargs={}, label_template=None, cache=None):
         self.name = name
         self.varr = variable_rows
 
@@ -136,6 +137,7 @@ class PowerlawMultiSeries:
                     chain,
                     variable_points,
                     last_kwargs_callback,
+                    cache=cache,
                     name="{}={}".format(self.varr.name, row_val),
                     last_parents=last_parents,
                     other_values=other_values | {self.varr.name : row_val},
@@ -179,7 +181,9 @@ class PowerlawMultiSeries:
                 this_path = "{}/{}_histograms_{}={}.pdf".format(path, self.name, self.varr.name, val)
             ps.plot_histograms(this_path, nfigure_format, title)
 
-    def plot_datarows(self, path, nfigure_format, **kwargs):
+    def plot_datarows(self, path, nfigure_format, pad=None, **kwargs):
         nfig = NodeFigure(nfigure_format, **kwargs)
         nfig.add(self.datarows_chain)
+        if not pad is None:
+            nfig.pad(pad)
         nfig.savefig(path)

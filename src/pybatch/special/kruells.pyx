@@ -139,6 +139,21 @@ cdef class PyBatchKruellsB1(PyPseudoParticleBatch):
             del tmp
             self._batch = NULL
 
+cdef class PyBatchKruellsB2(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruellsB2(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruellsB2 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruellsB2 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruellsB2 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruellsB2 *>self._batch;
+            del tmp
+            self._batch = NULL
+
 cdef class PyBatchKruellsC1(PyPseudoParticleBatch):
     def __cinit__(self, dict params):
         self._batch = <PseudoParticleBatch *>(new BatchKruellsC1(dict_to_map_string_double(params)))
@@ -229,6 +244,51 @@ cdef class PyBatchKruells13(PyPseudoParticleBatch):
             del tmp
             self._batch = NULL
 
+cdef class PyBatchKruells14(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruells14(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruells14 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruells14 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruells14 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruells14 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchKruells15(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruells15(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruells15 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruells15 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruells15 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruells15 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchKruells16(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchKruells16(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchKruells16 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchKruells16 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchKruells16 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchKruells16 *>self._batch;
+            del tmp
+            self._batch = NULL
+
 cdef class PyBatchAchterberg1(PyPseudoParticleBatch):
     def __cinit__(self, dict params):
         self._batch = <PseudoParticleBatch *>(new BatchAchterberg1(dict_to_map_string_double(params)))
@@ -286,5 +346,80 @@ cdef class PyBatchAchterberg2KPPC(PyPseudoParticleBatch):
         cdef BatchAchterberg2KPPC *tmp
         if not self._batch is NULL:
             tmp = <BatchAchterberg2KPPC *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2Implicit(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2Implicit(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2Implicit *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2Implicit *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2Implicit *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2Implicit *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2SecondOrder(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2SecondOrder(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2SecondOrder *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2SecondOrder *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2SecondOrder *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2SecondOrder *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2SecondOrder2(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2SecondOrder2(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2SecondOrder2 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2SecondOrder2 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2SecondOrder2 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2SecondOrder2 *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2SemiImplicit(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2SemiImplicit(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2SemiImplicit *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2SemiImplicit *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2SemiImplicit *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2SemiImplicit *>self._batch;
+            del tmp
+            self._batch = NULL
+
+cdef class PyBatchAchterberg2SemiImplicit2(PyPseudoParticleBatch):
+    def __cinit__(self, dict params):
+        self._batch = <PseudoParticleBatch *>(new BatchAchterberg2SemiImplicit2(dict_to_map_string_double(params)))
+
+    @staticmethod
+    cdef BatchAchterberg2SemiImplicit2 *_cast_(PseudoParticleBatch *_ptr):
+        return <BatchAchterberg2SemiImplicit2 *>_ptr
+
+    def __dealloc__(self):
+        cdef BatchAchterberg2SemiImplicit2 *tmp
+        if not self._batch is NULL:
+            tmp = <BatchAchterberg2SemiImplicit2 *>self._batch;
             del tmp
             self._batch = NULL

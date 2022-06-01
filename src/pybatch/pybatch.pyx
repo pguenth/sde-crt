@@ -13,6 +13,7 @@ from libcpp.string cimport string
 import numpy as np
 
 cimport numpy as np
+from cysignals.signals cimport sig_on, sig_off
 #https://github.com/cython/cython/wiki/WrappingSetOfCppClasses
 
 cdef cpp_map[string, double] dict_to_map_string_double(dict d):
@@ -28,9 +29,17 @@ cdef class PyPseudoParticleBatch:
     Inherit the cython wrappers for specialized :cpp:class:`PseudoParticleBatch` C++ classes from this class.
     The inheriting scheme resembles the inheritance on the C++ side.
 
+    Inherited classes need to define __cinit__ to initialize the correctly typed PseudoParticleBatch
+    instance that is stored in _batch. __init__ in this class only defaults some attributes.
+
     :param dict params: Batch parameters
     """
     def __init__(self, params):
+        """
+        Initialize the Node
+
+        :param dict params: The params given to the C++ backend
+        """
         self._states = None
         self._integrator_values = None
         self._reconstructed = False
@@ -41,7 +50,7 @@ cdef class PyPseudoParticleBatch:
             del self._batch
             self._batch = NULL
 
-    def run(self, int particle_count=-1):
+    def run(self, int particle_count=-1, int nthreads=1):
         """
         Run all or a given amount of pseudo particles in the batch.
 
@@ -51,7 +60,12 @@ cdef class PyPseudoParticleBatch:
         :return: *(int)* number of finished particles
         """
         self._raise_reconstructed_exception()
-        return (<PseudoParticleBatch *>(self._batch)).run(particle_count)
+
+        sig_on()
+        r = (<PseudoParticleBatch *>(self._batch)).run(particle_count, nthreads)
+        sig_off()
+
+        return r
 
     def step_all(self, int steps=1):
         """
@@ -63,7 +77,12 @@ cdef class PyPseudoParticleBatch:
         :return: *(int)* Number of finished particles
         """
         self._raise_reconstructed_exception()
-        return (<PseudoParticleBatch *>(self._batch)).step_all(steps)
+
+        sig_on()
+        r = (<PseudoParticleBatch *>(self._batch)).step_all(steps)
+        sig_off()
+
+        return r
 
     @property
     def unfinished_count(self):
@@ -140,6 +159,7 @@ cdef class PyPseudoParticleBatch:
         if type(self) == PyPseudoParticleBatch:
             raise ValueError("Cannot __reduce__ a PyPseudoParticleBatch (you must inherit from this class)")
 
+        print("Reducing...")
         return type(self)._reconstruct, (self._params, self.states, self.integrator_values)
 
     @classmethod

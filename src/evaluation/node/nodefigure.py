@@ -8,6 +8,9 @@ pplt.rc.update({
                 'text.usetex' : True,
                 })
 
+class NoLegend:
+    pass
+
 class SliceDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         """
@@ -278,9 +281,13 @@ class NodeFigure:
         node_args = {'plot_on' : plot_on, 'memo' : memo} | kwargs
 
         if instant:
-            self._execute_one_chain(node_chain, to, **node_args)
+            rval = self._execute_one_chain(node_chain, to, **node_args)
+        else:
+            rval = None
 
         self._chains[node_chain] = (to, instant, node_args)
+
+        return rval
 
     def savefig(self, path, legend_kw=None, legends_kw=None, fig_legend_kw=None, savefig_args=None):
         """
@@ -343,6 +350,45 @@ class NodeFigure:
         else:
             raise TypeError("Only lin or log axes support this padding algorithm")
 
+    def _pad_oneside(self, padding_factor, scale, lim, side):
+        if scale == 'linear':
+            inc = (lim[1] - lim[0]) * padding_factor / 2
+            if side == 'right':
+                return lim[0], lim[1] + inc
+            elif side == 'left':
+                return lim[0] - inc, lim[1]
+            else:
+                raise ValueError("side must be either right or left")
+        elif scale == 'log':
+            if side == 'right':
+                return lim[0], lim[1] * (1 + padding_factor)
+            elif side == 'left':
+                return lim[0] * (1 - padding_factor), lim[1] 
+            else:
+                raise ValueError("side must be either right or left")
+        else:
+            raise TypeError("Only lin or log axes support this padding algorithm")
+
+    def _pad_right(self, padding_factor, ax):
+        lim = ax.get_xlim()
+        scale = ax.get_xscale()
+        ax.set_xlim(self._pad_oneside(padding_factor, scale, lim, 'right'))
+
+    def _pad_left(self, padding_factor, ax):
+        lim = ax.get_xlim()
+        scale = ax.get_xscale()
+        ax.set_xlim(self._pad_oneside(padding_factor, scale, lim, 'left'))
+
+    def _pad_top(self, padding_factor, ax):
+        lim = ax.get_ylim()
+        scale = ax.get_yscale()
+        ax.set_ylim(self._pad_oneside(padding_factor, scale, lim, 'right'))
+
+    def _pad_bottom(self, padding_factor, ax):
+        lim = ax.get_ylim()
+        scale = ax.get_yscale()
+        ax.set_ylim(self._pad_oneside(padding_factor, scale, lim, 'left'))
+
     def _pad_x(self, padding_factor, ax):
         lim = ax.get_xlim()
         scale = ax.get_xscale()
@@ -365,13 +411,22 @@ class NodeFigure:
             ax_iter = [ax_or_grid]
 
         for ax in ax_iter:
-            if which == 'x':
-                self._pad_x(padding_factor, ax)
-            if which == 'y':
-                self._pad_y(padding_factor, ax)
-            if which == 'both':
+            if which == 'both' or which == 'all':
                 self._pad_x(padding_factor, ax)
                 self._pad_y(padding_factor, ax)
+            else:
+                if 'x' in which:
+                    self._pad_x(padding_factor, ax)
+                if 'y' in which:
+                    self._pad_y(padding_factor, ax)
+                if 't' in which:
+                    self._pad_top(padding_factor, ax)
+                if 'b' in which:
+                    self._pad_bottom(padding_factor, ax)
+                if 'r' in which:
+                    self._pad_right(padding_factor, ax)
+                if 'l' in which:
+                    self._pad_left(padding_factor, ax)
 
     def _create(self, default_format):
         self._fig, self._axs = pplt.subplots(**({'share': False,'tight': True} | default_format.subplots))
@@ -387,11 +442,13 @@ class NodeFigure:
         targets = self.axs[key]
         if isinstance(targets, pplt.SubplotGrid):
             for ax in targets: 
-                callback(ax)
+                rval = callback(ax)
         elif isinstance(targets, pplt.axes.Axes):
-            callback(targets)
+            rval = callback(targets)
+
+        return rval
 
     def _execute_one_chain(self, node_chain, key, **kwargs):
         node_bound = lambda ax : node_chain(ax, **kwargs)
-        self._map_key(key, node_bound) 
+        return self._map_key(key, node_bound) 
 

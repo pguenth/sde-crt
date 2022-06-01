@@ -50,8 +50,20 @@ cdef extern from "batch_kruells.h":
     cdef cppclass BatchKruells13(PseudoParticleBatch):
         BatchKruells13(map[string, double] params) except +
 
+    cdef cppclass BatchKruells14(PseudoParticleBatch):
+        BatchKruells14(map[string, double] params) except +
+
+    cdef cppclass BatchKruells15(PseudoParticleBatch):
+        BatchKruells15(map[string, double] params) except +
+
+    cdef cppclass BatchKruells16(PseudoParticleBatch):
+        BatchKruells16(map[string, double] params) except +
+
     cdef cppclass BatchKruellsB1(PseudoParticleBatch):
         BatchKruellsB1(map[string, double] params) except +
+
+    cdef cppclass BatchKruellsB2(PseudoParticleBatch):
+        BatchKruellsB2(map[string, double] params) except +
 
     cdef cppclass BatchKruellsC1(PseudoParticleBatch):
         BatchKruellsC1(map[string, double] params) except +
@@ -67,3 +79,18 @@ cdef extern from "batch_kruells.h":
 
     cdef cppclass BatchAchterberg2KPPC(PseudoParticleBatch):
         BatchAchterberg2KPPC(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2Implicit(PseudoParticleBatch):
+        BatchAchterberg2Implicit(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2SecondOrder(PseudoParticleBatch):
+        BatchAchterberg2SecondOrder(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2SecondOrder2(PseudoParticleBatch):
+        BatchAchterberg2SecondOrder2(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2SemiImplicit(PseudoParticleBatch):
+        BatchAchterberg2SemiImplicit(map[string, double] params) except +
+
+    cdef cppclass BatchAchterberg2SemiImplicit2(PseudoParticleBatch):
+        BatchAchterberg2SemiImplicit2(map[string, double] params) except +

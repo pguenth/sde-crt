@@ -250,6 +250,66 @@ class BatchKruells13 : public PseudoParticleBatch {
 };
 
 /**
+ * SemiImplicit
+ */
+class BatchKruells14 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SemiImplicitWeakScheme2 *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells14(std::map<std::string, double> params);
+                ~BatchKruells14();
+};
+
+/**
+ * Implicit
+ */
+class BatchKruells15 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                ImplicitEulerScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells15(std::map<std::string, double> params);
+                ~BatchKruells15();
+};
+
+/**
+ * KPPC
+ */
+class BatchKruells16 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                KPPCScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruells16(std::map<std::string, double> params);
+                ~BatchKruells16();
+};
+
+/**
  */
 class BatchKruellsB1 : public PseudoParticleBatch {
         private:
@@ -266,6 +326,25 @@ class BatchKruellsB1 : public PseudoParticleBatch {
                  */
                 BatchKruellsB1(std::map<std::string, double> params);
                 ~BatchKruellsB1();
+};
+
+/**
+ */
+class BatchKruellsB2 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SemiImplicitWeakScheme2 *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchKruellsB2(std::map<std::string, double> params);
+                ~BatchKruellsB2();
 };
 /**
  */
@@ -358,5 +437,95 @@ class BatchAchterberg2KPPC : public PseudoParticleBatch {
                  */
                 BatchAchterberg2KPPC(std::map<std::string, double> params);
                 ~BatchAchterberg2KPPC();
+};
+/**
+ */
+class BatchAchterberg2Implicit : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                ImplicitEulerScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2Implicit(std::map<std::string, double> params);
+                ~BatchAchterberg2Implicit();
+};
+/**
+ */
+class BatchAchterberg2SecondOrder : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SecondOrderScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2SecondOrder(std::map<std::string, double> params);
+                ~BatchAchterberg2SecondOrder();
+};
+/**
+ */
+class BatchAchterberg2SecondOrder2 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SecondOrderScheme2 *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2SecondOrder2(std::map<std::string, double> params);
+                ~BatchAchterberg2SecondOrder2();
+};
+/**
+ */
+class BatchAchterberg2SemiImplicit : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SemiImplicitWeakScheme *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2SemiImplicit(std::map<std::string, double> params);
+                ~BatchAchterberg2SemiImplicit();
+};
+/**
+ */
+class BatchAchterberg2SemiImplicit2 : public PseudoParticleBatch {
+        private:
+                BreakpointTimelimit *_tlimit;
+                //BreakpointSpatial *_slimit;
+                SemiImplicitWeakScheme2 *_scheme;
+                WienerProcess *_process;
+                //LinearIntegrator *_sintegrator;
+
+
+        public:
+                /**
+                 * Required parameters:
+                 */
+                BatchAchterberg2SemiImplicit2(std::map<std::string, double> params);
+                ~BatchAchterberg2SemiImplicit2();
 };
 #endif

@@ -109,7 +109,7 @@ class KwargsCacheMixin(ABC):
             return False
 
         new_kw = self._cleancopy(kwargs)
-        #print(name, old_kw, new_kw)
+        #logging.error("at node {}: old_kw: {} ****** new_kw: {}".format(name, old_kw, new_kw))
         if self._compare_dict_rec(old_kw, new_kw):
             return False
         else:
@@ -159,8 +159,10 @@ class KwargsCacheMixin(ABC):
 
         for k, v in kwargs.items():
             if not k in old_kw:
+                logging.info("not in old kwargs: {}".format(k))
                 return False
             elif not self._dynamic_value_compare(old_kw[k], v):
+                logging.info("not the same value: key: {}; new value: {}; old value: {}".format(k, v, old_kw[k]))
                 return False
 
         return True
@@ -231,7 +233,7 @@ class FileCache(KwargsCacheMixin, NodeCache):
     def _store_kwargs(self, name, kwargs):
         self.store(name + "_kwargs", kwargs, loglevel=logging.DEBUG)
 
-    def load(self, name, loglevel=logging.INFO):
+    def load(self, name, loglevel=logging.DEBUG):
         try:
             with open(self.cache_path(name), mode='rb' if self.byte_mode else 'r') as cachefile:
                 logging.log(loglevel, "Using cached data from {} for {}".format(self.cache_path(name), name))
@@ -242,7 +244,7 @@ class FileCache(KwargsCacheMixin, NodeCache):
 
         return content
 
-    def store(self, name, data, loglevel=logging.INFO):
+    def store(self, name, data, loglevel=logging.DEBUG):
         with open(self.cache_path(name), mode='wb' if self.byte_mode else 'w') as cachefile:
             logging.log(loglevel, "Storing data in {} for {}".format(self.cache_path(name), name))
             type(self)._write_file(cachefile, data)

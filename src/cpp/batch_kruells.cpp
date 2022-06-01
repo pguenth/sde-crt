@@ -158,6 +158,8 @@ Eigen::VectorXd kruells_shockaccel2_drift_94_2(const SpaceTimePoint& p, double X
     Eigen::VectorXd v(2);
     v(0) = kruells94_dkappadx_dep(p.x(0), Xsh, a, b, q) + kruells94_beta(p.x(0), Xsh, a, b);
     v(1) = - (p.x(1)) * (kruells94_dbetadx(p.x(0), Xsh, b) / 3 + k_syn * p.x(1));
+    //if (v(1) < 0)
+    //    std::cout << "p.x(1) " << p.x(1) << ", dbetadx " << kruells94_dbetadx(p.x(0), Xsh, b) << ", k_syn " << k_syn << "\n";
     return v;
 }
 
@@ -846,6 +848,169 @@ BatchKruells13::~BatchKruells13(){
     //delete _sintegrator;
 }
 
+// ******************************************   KRUELLS 14 ****************************************** //
+// Kruells 9 with semi-implicit scheme
+
+BatchKruells14::BatchKruells14(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SemiImplicitWeakScheme2(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchKruells14::~BatchKruells14(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+//
+// ******************************************   KRUELLS 15 ****************************************** //
+// Kruells 9 with fully implicit scheme
+
+BatchKruells15::BatchKruells15(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new ImplicitEulerScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchKruells15::~BatchKruells15(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+//
+// ******************************************   KRUELLS 16 ****************************************** //
+// Kruells 9 with KPPC
+
+BatchKruells16::BatchKruells16(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "beta_s"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel2_drift_94_2, _1, msa(params, "Xsh"), a, b, msa(params, "k_syn"), msa(params, "q"));
+    auto call_diffusion = std::bind(kruells_shockaccel2_diffusion, _1, msa(params, "Xsh"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new KPPCScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchKruells16::~BatchKruells16(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
 // ******************************************   Achterberg 2011 1  ****************************************** //
 // testing kappa = q * beta bzw. D = q * V in achterbergs notation
 // parametrisierung wie kruells94, also nicht ln(p)
@@ -1086,6 +1251,260 @@ BatchAchterberg2KPPC::~BatchAchterberg2KPPC(){
     //delete _sintegrator;
 }
 
+BatchAchterberg2Implicit::BatchAchterberg2Implicit(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new ImplicitEulerScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2Implicit::~BatchAchterberg2Implicit(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+BatchAchterberg2SecondOrder::BatchAchterberg2SecondOrder(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SecondOrderScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2SecondOrder::~BatchAchterberg2SecondOrder(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+BatchAchterberg2SecondOrder2::BatchAchterberg2SecondOrder2(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SecondOrderScheme2(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2SecondOrder2::~BatchAchterberg2SecondOrder2(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+BatchAchterberg2SemiImplicit::BatchAchterberg2SemiImplicit(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SemiImplicitWeakScheme(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2SemiImplicit::~BatchAchterberg2SemiImplicit(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+BatchAchterberg2SemiImplicit2::BatchAchterberg2SemiImplicit2(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(msa(params, "V"), msa(params, "r"));
+    double b = b_from_shockparam(msa(params, "V"), msa(params, "r"));
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(achterberg_drift_ln, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_diffusion = std::bind(achterberg_diffusion, _1, msa(params, "Ls"), a, b, msa(params, "q"));
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SemiImplicitWeakScheme2(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+BatchAchterberg2SemiImplicit2::~BatchAchterberg2SemiImplicit2(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
 // *************** KRUELLS B1 *************
 // Schlumpfhüte: KruellsBx
 //
@@ -1162,6 +1581,68 @@ BatchKruellsB1::BatchKruellsB1(std::map<std::string, double> params){
 
 
 BatchKruellsB1::~BatchKruellsB1(){
+    delete _scheme;
+    delete _process;
+    delete _tlimit;
+    //delete _slimit;
+    //delete _sintegrator;
+}
+
+BatchKruellsB2::BatchKruellsB2(std::map<std::string, double> params){
+    // get a random generator
+    _process = new WienerProcess(2);
+
+    // time limit breakpoint
+    _tlimit = new BreakpointTimelimit(msa(params, "Tmax"));
+
+    // spatial breakpoint
+    //Eigen::VectorXd xmin(2), xmax(2);
+    //xmin << -L, 0;
+    //xmax << L, 1000;
+    //_slimit = new BreakpointSpatial(xmin, xmax);
+
+    double a1 = msa(params, "a1");
+    double r = msa(params, "r");
+    double gamma = msa(params, "gamma");
+    double k_syn = msa(params, "k_syn");
+    double a2 = a1 / (r * r);
+    double beta_s = sqrt(4 * gamma);
+    double kappa = gamma / (a1 * k_syn);
+
+    std::cout << "a2 " << a2 << ", beta_s " << beta_s << ", kappa " << kappa << "\n";
+    
+    // calculate a, b from shock max and compression ratio
+    double a = a_from_shockparam(beta_s, r);
+    double b = b_from_shockparam(beta_s, r);
+
+    // callbacks
+    // not sure if &function is better
+    auto call_drift = std::bind(kruells_shockaccel3_drift_94, _1, msa(params, "Xsh"), a, b, k_syn, kappa);
+    auto call_diffusion = std::bind(kruells_shockaccel3_diffusion, _1, kappa);
+    auto call_timestep = std::bind(ts_const, _1, msa(params, "dt"));
+    _scheme = new SemiImplicitWeakScheme2(call_drift, call_diffusion, call_timestep, _process);
+
+    // starting points
+    std::vector<SpaceTimePoint> starts;
+    Eigen::VectorXd start_x(2);
+    start_x << msa(params, "x0"), msa(params, "y0");
+    for (double t = 0; t <= msa(params, "Tmax"); t += msa(params, "t_inj")){
+        starts.push_back(SpaceTimePoint(t, start_x));
+    }
+
+    // register options
+    PseudoParticleOptions opt;
+    opt.breakpoints.push_back(_tlimit);
+    //opt.breakpoints.push_back(_slimit);
+    opt.scheme = _scheme;
+    opt.tracked = false;
+
+    // initialize
+    initialize(starts, opt);
+}
+
+
+BatchKruellsB2::~BatchKruellsB2(){
     delete _scheme;
     delete _process;
     delete _tlimit;

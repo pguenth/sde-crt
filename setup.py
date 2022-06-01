@@ -5,13 +5,13 @@ from Cython.Build import cythonize
 import eigency
 
 cython_path = "src/pybatch/"
-include_dirs = ["src/cpp"] + eigency.get_includes()
-extra_objects = ["lib/libbatch.a"]
-extra_compile_args = ["-std=c++11"]#['-fsanitize=address', '-fno-omit-frame-pointer']
 
-kwargs_ext = { 'include_dirs' : include_dirs, 
-               'extra_objects' : extra_objects,
-               'extra_compile_args' : extra_compile_args }
+kwargs_ext = { 'include_dirs' : ["src/cpp"] + eigency.get_includes(),
+               'library_dirs' : ["lib/"],
+               'libraries' : ["batch"], # dynamic linking at link time
+               #'extra_objects' : ["lib/libbatch.a"], #static linking
+               'extra_compile_args' : ["-std=c++11"]#['-fsanitize=address', '-fno-omit-frame-pointer']
+             }
 
 extensions = [
         Extension("pybatch.pybatch", [cython_path + "pybatch.pyx"], **kwargs_ext),

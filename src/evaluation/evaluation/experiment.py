@@ -26,7 +26,12 @@ class Experiment:
         }
         self.options.update(kwargs)
         self.params = params
-        self.batch = batch_cls(params)
+
+        print("ex", params)
+        if isinstance(batch_cls, type):
+            self.batch = batch_cls(params)
+        else:
+            self.batch = batch_cls
 
         self._finished = False
         self._states = None
@@ -72,7 +77,7 @@ class Experiment:
         """
         return self.states[index]
 
-    def run(self):
+    def run(self, nthreads=1):
         """
         Run the C++ simulation
 
@@ -81,7 +86,7 @@ class Experiment:
         logging.info("[Experiment {}] Running C++ simulation with the parameters {}".format(self.options['name'], str(self.params)))
         start_time = time.perf_counter()
 
-        self.batch.run()
+        self.batch.run(nthreads=nthreads)
         
         duration = time.perf_counter() - start_time
         logging.info("[Experiment {}] Finished C++ simulation in %ss".format(self.options['name']), duration)

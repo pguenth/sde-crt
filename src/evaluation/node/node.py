@@ -41,6 +41,20 @@ def simple_cache(func):
 
     return decorated
 
+def find_line(tup):
+    if isinstance(tup, matplotlib.lines.Line2D):
+        return tup
+    #!! can it be list or sth?
+    elif isinstance(tup, tuple):
+        for t in tup:
+            fl = find_line(t)
+            if not fl is None:
+                return fl
+
+        return None
+    else:
+        return None
+
 def dict_or_list_iter(obj):
     if type(obj) is list:
         return enumerate(obj)
@@ -76,6 +90,12 @@ class ColorCycle:
         self._next += 1
         self._next %= len(self.colors)
         return this
+
+    def __eq__(self, other):
+        if not type(other) == type(self):
+            return False
+
+        return self.colors == other.colors and self._next == other._next
 
 # https://stackoverflow.com/a/30019359/2581056
 class InstanceCounterMeta(ABCMeta):
@@ -143,13 +163,15 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         cache reading, not writing.**
     :type ignore_cache: bool
 
-    :param cache_not_found_action:  What to do if no :py:class:`NodeCache` instance is attached and children did not request data
+    :param cache_not_found_regenerate:  
+        If no :py:class:`NodeCache` instance is attached and children did not
+        request data, either
         
-        * '*always_regen*': force a regeneration (which in turn forces all 
-          children to regenerate)
-        * '*ignore*': do not generate anything and continue.
+        * *True*: force a regeneration (which in turn forces all
+          children to regenerate). Default.
+        * *False*: do not generate anything and continue
 
-    :type cache_not_found_action: string, optional
+    :type cache_not_found_regenerate: bool, optional
 
     :param \*\*kwargs: The kwargs are stored and are passed to the overridden
         functions and can be used for customisation of a derived class.
@@ -171,7 +193,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
     _base_id = count(0)
 
-    def __init__(self, name, parents=None, plot=False, cache=None, ignore_cache=False, cache_not_found_action='always_regen', **kwargs):
+    def __init__(self, name, parents=None, plot=False, cache=None, ignore_cache=False, cache_not_found_regenerate=True, **kwargs):
         self._id = next(self._instance_ids)
         self._global_id = next(self._base_id)
         self.name = name
@@ -179,12 +201,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         self.cache = cache
         self.ignore_cache = ignore_cache
 
-        if cache_not_found_action == 'always_regen':
-            self._no_cache_regen = True
-        elif cache_not_found_action == 'ignore':
-            self._no_cache_regen = False
-        else:
-            raise ValueError("cache_not_found_action must be either always_regen or ignore")
+        self.cache_not_found_regenerate = cache_not_found_regenerate
 
         # does not propagate to children
         # set to true for inherited classes that are
@@ -343,6 +360,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
                     plot=self.plot_on if plot is None else plot,
                     cache=self.cache,
                     ignore_cache=self.ignore_cache if ignore_cache is None else ignore_cache,
+                    cache_not_found_regenerate=self.cache_not_found_regenerate, 
                     **kwargs_use
                 )
 
@@ -612,19 +630,20 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
     # eval node, the data is stored
     @simple_cache
     def _generate_v(self, common, kwargs):
-        self._log_debug("Executing .do() to regenerate data")
+        self._log_info("Executing .do() to regenerate data")
         v = self.do(self._parent_data, common, **(self.ext | kwargs))
         if not self.cache is None:
-            self._log_debug("Caching generated data and possibly kwargs")
+            self._log_debug("Caching generated data")
             self.cache.store(self.name, v)
-            if isinstance(self.cache, KwargsCacheMixin):
+            if hasattr(self.cache, 'store_kwargs'): # isinstance stopped working for nodes defined outside of the module, maybe because of some import stuff.
+                self._log_debug("Caching kwargs")
                 self.cache.store_kwargs(self.name, self.ext | kwargs)
 
         return v
 
     @simple_cache
     def _cacheload_v(self):
-        self._log_debug("Loading data from cache")
+        self._log_info("Loading data from cache")
         v = self.cache.load(self.name)
         return v
 
@@ -643,7 +662,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         checks existance and usability of caching
         """
         if self.cache is None:
-            if self._no_cache_regen: 
+            if self.cache_not_found_regenerate:
                 self._log_debug("Needs data because no NodeCache is attached")
                 return True
             else:
@@ -652,13 +671,13 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         elif self.ignore_cache:
             self._log_debug("Needs data because cache should be ignored")
             return True
-        elif not self.cache.exists(self.name) and self._no_cache_regen:
+        elif not self.cache.exists(self.name) and self.cache_not_found_regenerate:
             self._log_debug("Needs data because no cached data exists")
             return True
         else:
             # cache exists, check kwargs
-            if isinstance(self.cache, KwargsCacheMixin) and self.cache.kwargs_changed(self.name, self.ext):
-                self._log_debug("The stored kwargs are not up to date, so the cache is ignored.")
+            if hasattr(self.cache, 'kwargs_changed') and self.cache.kwargs_changed(self.name, self.ext):
+                self._log_info("The stored kwargs are not up to date, so the cache is ignored.")
                 self._kwargs_changed = True
                 return True
             else:
@@ -780,7 +799,11 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
 
             # bodgy: store the color of the first returned handle
             if not self._plot_handles[0] is None and self._color is None:
-                self._color = self._plot_handles[0].get_color()
+                l = find_line(self._plot_handles[0])
+                if not l is None:
+                    self._color = l.get_color()
+                else:
+                    self._color = None
 
     def map_parents(self, callback, call_on_none=False):
         """
@@ -988,13 +1011,15 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         """
         pass
 
-    @abstractmethod
     def do(self, parent_data, common, **kwargs):
         """
         Override this method. Perform the required evaluation.
         parent_data is a dict containing the return values of 
         all parent's do calls with the keys as given at creation
         time.
+
+        You can skip overriding this method. If not overridden the
+        parent data is returned.
 
         Do not change the common dict here, because this method
         is not guaranteed to run at every execution of the evaluation
@@ -1008,7 +1033,7 @@ class EvalNode(ABC, metaclass=InstanceCounterMeta):
         even if your node does not use any kwargs or you write them
         out.
         """
-        raise NotImplementedError
+        return parent_data
 
     def plot(self, data, ax, common, **kwargs):
         """
@@ -1077,7 +1102,8 @@ class SubscriptedNode(EvalNode):
         self.never_cache = True
 
     def do(self, parent_data, common, **kwargs):
-        return parent_data[0][kwargs['subscript']]
+        #print(self.name, kwargs['subscript'])
+        return parent_data[kwargs['subscript']]
 
 class NodeGroup(EvalNode):
     def subclass_init(self, parents, **kwargs):
