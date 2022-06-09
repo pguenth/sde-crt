@@ -6,6 +6,7 @@ tests/
 testcache/
 tests_old/
 pickle/
+pickle-old/
 */.undodir/
 __Tagbar__.*
 __pycache__/
