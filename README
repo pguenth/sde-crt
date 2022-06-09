@@ -1,0 +1,57 @@
+Information on reproducing:
+
+approximately, one python file in the root of this folder corresponds to one type of experiment. sometimes different variations are available.
+the tests.py file is an exemption (which was a bad design choice in hindsight): it contains smaller setups, each in one function.
+
+contents of this folders are:
+  - make-plots.xsh (using the xonsh shell language) generates all plots required for the master's thesis.
+
+  - 'pickle': experimental data and intermediate results are cached in this folder using the python pickle library (not the best choice...). more or
+    less every run (generating usually one plot) creates one folder in 'pickle'. runs from tests.py are stored in the subfolder 'pickle/ex'. the kwargs
+    files store the kwargs used in the run (see EvalNode documentation for more). they can be read using some code in tests.py (without sensible interface)
+    pickled data that isn't used in the plots for the thesis is stored in 'pickle-old'
+
+  - 'figures': the exported figures
+
+  - docs for the code are in 'code/docs-build'. they are not complete, but some parts are quite extensively documented.
+  
+  - 'src': the source code, cpp and python/cython parts.
+  
+  - the Makefile contains several useful targets:
+      'make all': c++ library, cython bindings, linking
+      'make docs'; compile documentation with sphinx and doxygen
+
+known issues:
+  - the EvalNode stuff is not perfect, but quite good i think (for alpha stage stuff)
+  - you need to add the 'code/lib' folder to the $LD_LIBRARY_PATH environment variable (at least for some runs) because the cython library is dynamically linked
+  - some directories for build output or for example generated figures are not created automatically, which leads to errors. just create them manually.
+
+versions of the software stack I used for this:
+  Archlinux OS (up to date as of 2022-06-01)
+    for more on the software tools see github.com/pguenth/config (or whereever this may be in the future)
+
+  Python 3.10.4
+  g++ 12.1.0
+
+  Python libs:
+    Proplot 0.9.5.post301
+    Matplotlib 3.5.2
+    eigency 1.77
+    cython 0.29.30
+    numpy 1.22.3
+    scipy 1.8.1
+    astropy 5.0.1
+    agnpy 0.1.8
+    cysignals 1.11.2
+
+  Python optional (but possibly code needs to be commented out):
+    networkx 2.7.1 [for creating visualisations of the evaluation tree]
+
+  C++ libs:
+    Eigen 3.4.0
+    boost 1.78.0
+
+  for the docs:
+    python-sphinx 5.0.1
+    python-sphinx_rtd_theme 1.0.0
+    doxygen 1.9.3
