@@ -1,5 +1,5 @@
-from src.evaluation.node.node import EvalNode, dict_or_list_iter, dict_or_list_map
-from src.evaluation.node.cache import KwargsCacheMixin
+from grapheval.node import EvalNode, dict_or_list_iter, dict_or_list_map
+from grapheval.cache import KwargsCacheMixin
 
 import numpy as np
 from scipy import integrate

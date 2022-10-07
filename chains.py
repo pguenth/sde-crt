@@ -1,5 +1,5 @@
-from node.special import *
-from node.node import *
+from src.specialnodes import *
+from grapheval.node import *
 
 def generate_timerange_set(param, times, constant_particle_count=None):
     l = {}

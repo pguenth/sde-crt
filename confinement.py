@@ -1,13 +1,12 @@
 import sys
 sys.path.insert(0, 'lib')
-sys.path.insert(0, 'src/evaluation')
 from pybatch.special.kruells import *
 import proplot as pplt
 import logging
 import chains
 import multiproc
 import formats
-from node.cache import PickleNodeCache
+from grapheval.cache import PickleNodeCache
 
 from powerlawseries import *
 

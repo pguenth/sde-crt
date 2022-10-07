@@ -1,4 +1,3 @@
-import pickle
 import logging
 
 from functools import wraps

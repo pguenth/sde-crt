@@ -1,7 +1,4 @@
-import sys
-sys.path.insert(0, 'lib')
-sys.path.insert(0, 'src/evaluation')
-from node.nodefigure import NodeFigureFormat
+from grapheval.nodefigure import NodeFigureFormat
 import proplot as pplt
 
 pplt.rc['font.family'] = 'serif'

@@ -26,11 +26,11 @@ from agnpy import spectra
 import formats
 import chains
 from toptygin import *
-from node.nodefigure import NodeFigure, NodeFigureFormat
-from node.cache import PickleNodeCache
-from node.special import *
-from node.node import *
-from node.graph import draw_node_chain
+from grapheval.nodefigure import NodeFigure, NodeFigureFormat
+from grapheval.cache import PickleNodeCache
+from grapheval.special import *
+from grapheval.node import *
+from grapheval.graph import draw_node_chain
 
 import multiproc
 

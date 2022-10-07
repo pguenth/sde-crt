@@ -6,10 +6,11 @@ from agnpy import spectra
 
 import formats
 import chains
-from node.nodefigure import NodeFigure
-from node.cache import PickleNodeCache
-from node.special import *
-from node.node import *
+from grapheval.nodefigure import NodeFigure
+from grapheval.cache import PickleNodeCache
+from grapheval.node import *
+
+from src.specialnodes import *
 
 import proplot as pplt
 from matplotlib.lines import Line2D

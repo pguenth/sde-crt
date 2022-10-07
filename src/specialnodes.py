@@ -1,7 +1,8 @@
 import sys
 import numbers
 import copy
-from .node import EvalNode, dict_or_list_iter, dict_or_list_map
+from grapheval.node import EvalNode, dict_or_list_iter, dict_or_list_map
+from grapheval.cache import FileCache
 sys.path.insert(0, '../../../lib')
 sys.path.insert(0, '../../../../lib')
 sys.path.insert(0, '../../lib')
@@ -11,7 +12,6 @@ sys.path.insert(0, 'src/evaluation')
 from pybatch.pybreakpointstate import *
 from evaluation.helpers import *
 from evaluation.experiment import *
-from .cache import FileCache
 from scipy import stats, optimize
 from astropy import units as u
 from astropy import constants

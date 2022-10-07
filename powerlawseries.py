@@ -1,10 +1,9 @@
 import sys
 sys.path.insert(0, 'lib')
-sys.path.insert(0, 'src/evaluation')
-from node.special import *
-from node.node import *
-from node.cache import PickleNodeCache
-from node.nodefigure import *
+from src.specialnodes import *
+from grapheval.node import *
+from grapheval.cache import PickleNodeCache
+from grapheval.nodefigure import *
 from pybatch.special.kruells import *
 import proplot as pplt
 import logging
