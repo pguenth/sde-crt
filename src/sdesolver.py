@@ -5,6 +5,7 @@ from numba.core.typing.asnumbatype import as_numba_type
 import numpy as np
 from numpy.random import SeedSequence, PCG64, Generator
 import copy
+import time
 
 class SDE:
     def __init__(self, ndim, drift_callback=None, diffusion_callback=None, check_boundaries=None, initial_condition=None):
@@ -59,7 +60,6 @@ class SDE:
 
             
 
-@jitclass([("t", float64), ("x", float64[:]), ("finished", boolean)])
 class SDEPseudoParticle:
     finished_reason : str
     def __init__(self, t0, x0, finished=False, finished_reason='none'):
@@ -74,53 +74,33 @@ class SDEPseudoParticle:
     def copy(self):
         return SDEPseudoParticle(self.t, self.x, self.finished, self.finished_reason)
 
-#@jitclass([("next_double", as_numba_type(PCG64(0).cffi.next_double)), ("state", as_numba_type(PCG64(0).cffi.state_address))])
-#class CRandomNumberGenerator:
-#    def __init__(self, next_double, state_address):
-#        self.next_double = next_double
-#        self.state_address = state_address
-
-
-@njit
-def _normals(n, next_double, state):
-    """
-    from https://numpy.org/devdocs/reference/random/examples/numba.html
-    no idea why this works, but it does
-    """
-    out = np.empty(n)
-    for i in range((n + 1) // 2):
-        x1 = 2.0 * next_double(state) - 1.0
-        x2 = 2.0 * next_double(state) - 1.0
-        r2 = x1 * x1 + x2 * x2
-        while r2 >= 1.0 or r2 == 0.0:
-            x1 = 2.0 * next_double(state) - 1.0
-            x2 = 2.0 * next_double(state) - 1.0
-            r2 = x1 * x1 + x2 * x2
-        f = np.sqrt(-2.0 * np.log(r2) / r2)
-        out[2 * i] = f * x1
-        if 2 * i + 1 < n:
-            out[2 * i + 1] = f * x2
-    return out
-
-@njit(parallel=True)
-def _solve_backend(pps, rng_next_doubles, rng_states, timestep, sde_drift, sde_diff, sde_bound, sde_ndim, scheme):
-    for i in prange(len(pps)):
-        pp = pps[i]
-        rng_state = rng_states[i]
-        rng_next_double = rng_next_doubles[i]
+def _solve_backend(pps, rngs, timestep, sde, scheme):
+    for pp, rng in zip(pps, rngs):
         while not pp.finished:
-            escaped = sde_bound(pp.t, pp.x)
+            escaped = sde.boundaries_callback(pp.t, pp.x)
             if not escaped is None:
                 pp.finished_reason = escaped
                 pp.finished = True
                 continue
 
-            rndvec = _normals(sde_ndim, rng_next_double, rng_state)
-            new_t, new_x = scheme(pp, rndvec, timestep, sde_drift, sde_diff)
+            rndvec = rng.standard_normal(sde.ndim)
+            new_t, new_x = scheme(pp, rndvec, timestep, sde.drift_callback, sde.diffusion_callback)
 
             pp.t = new_t
             pp.x = new_x
 
+class SDEPPStateOldstyle:
+    """ this class is for bodging this solver together with the C++ solver """
+    def __init__(self, t, x, breakpoint_state):
+        from pybatch.pybreakpointstate import PyBreakpointState
+
+        self.t = t
+        self.x = x
+
+        if breakpoint_state == 'time':
+            self.breakpoint_state = PyBreakpointState.TIME
+        else:
+            self.breakpoint_state = PyBreakpointState.NONE
 
 
 class SDESolver:
@@ -132,23 +112,35 @@ class SDESolver:
 
 
     def solve(self, sde, timestep):
-        pps = List()
+        pps = []
         for init_pp in sde.initial_condition:
             pps.append(init_pp.copy())
 
         #pps = np.array(pps)
         seeds = SeedSequence(1234)
         # maybe switch to PCG64DXSM (https://numpy.org/doc/stable/reference/random/upgrading-pcg64.html)
-        bit_gens = [PCG64(s) for s in seeds.spawn(len(pps))]
+        rngs = [Generator(PCG64(s)) for s in seeds.spawn(len(pps))] 
 
-        rng_next_doubles = [r.cffi.next_double for r in bit_gens]
-        rng_states = List([r.cffi.state_address for r in bit_gens])
-        #rngs = [CRandomNumberGenerator(r.cffi.next_double, r.cffi.state_address) for r in bit_gens]
+        start = time.perf_counter()
+        _solve_backend(pps, rngs, timestep, sde, self.scheme)
+        end = time.perf_counter()
+        print("Elapsed backend = {}us".format((end - start) * 1e6))
+        return pps
 
-        _solve_backend(pps, rng_next_doubles, rng_states, timestep, sde.drift_callback, sde.diffusion_callback, sde.boundaries_callback, sde.ndim, self.scheme)
-        return list(pps)
+    def solve_oldstyle(self, sde, timestep):
+        pps = self.solve(sde, timestep)
+        return SDESolver.get_oldstyle_like_states(pps)
 
-@njit
+    @staticmethod
+    def get_oldstyle_like_states(newstyle_pps):
+        pstates = []
+        for pp in newstyle_pps:
+            pstates.append(SDEPPStateOldstyle(pp.t, np.array([pp.x]).T, pp.finished_reason))
+
+        return pstates
+
+
+
 def sde_scheme_euler(pp, rndvec, timestep, drift, diffusion):
     t, x = pp.t, pp.x
     t_new = t + timestep

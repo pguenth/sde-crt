@@ -28,7 +28,7 @@ import chains
 from toptygin import *
 from grapheval.nodefigure import NodeFigure, NodeFigureFormat
 from grapheval.cache import PickleNodeCache
-from grapheval.special import *
+from src.specialnodes import *
 from grapheval.node import *
 from grapheval.graph import draw_node_chain
 
@@ -742,7 +742,8 @@ def kruells9a1():
               'q' : 1
             }
 
-    times = np.array([0.64, 2.0, 6.4, 20, 200])
+    #times = np.array([0.64, 2.0, 6.4, 20, 200])
+    times = np.array([0.2])
 
     cache = PickleNodeCache(cachedir, name)
     histosetx, histosetp, powerlaw = chains.get_chain_times_maxpl(PyBatchKruells9, cache, param, times, confine_x=0.05, bin_count=30)
