@@ -13,7 +13,7 @@ from src.specialnodes import *
 import chains
 import formats
 
-from numba import njit, f8
+from numba import njit, f8, cfunc, types, carray
 
 @njit(f8(f8, f8, f8, f8))
 def kruells94_beta(x, Xsh, a, b):
@@ -31,7 +31,8 @@ def kruells94_kappa_dep(x, Xsh, a, b, q):
 def kruells94_dkappadx_dep(x, Xsh, a, b, q):
     return 2 * q * kruells94_beta(x, Xsh, a, b) * kruells94_dbetadx(x, Xsh, b)
 
-@njit(f8[:](f8, f8[:]))
+#@njit(f8[:](f8, f8[:]))
+@cfunc(f8[:](f8, f8[:]))
 def drift(t, x):
     # cpp: kruells_shockaccel2_drift_94_2
     Xsh = 0.001215
@@ -40,11 +41,48 @@ def drift(t, x):
     k_syn = 0
     q = 1
 
-    v0 = kruells94_dkappadx_dep(x[0], Xsh, a, b, q) + kruells94_beta(x[0], Xsh, a, b)
-    v1 = - (x[1]) * (kruells94_dbetadx(x[0], Xsh, b) / 3 + k_syn * x[1])
-    return np.array([v0, v1])
+    #v0 = kruells94_dkappadx_dep(x[0], Xsh, a, b, q) + kruells94_beta(x[0], Xsh, a, b)
+    #v1 = - (x[1]) * (kruells94_dbetadx(x[0], Xsh, b) / 3 + k_syn * x[1])
+    #return np.array([v0, v1])
+    return np.array([0.0, 1.0])
 
-@njit(f8[:,:](f8, f8[:]))
+@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)))
+def drift_test(out, t, x):
+    # cpp: kruells_shockaccel2_drift_94_2
+    Xsh = 0.001215
+    a = 0.0375
+    b = 0.0225
+    k_syn = 0
+    q = 1
+
+    x_a = carray(x, (2,))
+    v0 = kruells94_dkappadx_dep(x_a[0], Xsh, a, b, q) + kruells94_beta(x_a[0], Xsh, a, b)
+    v1 = - (x_a[1]) * (kruells94_dbetadx(x_a[0], Xsh, b) / 3 + k_syn * x_a[1])
+
+    out_a = carray(out, (1,))
+    out_a[0] = v0
+    out_a[1] = v1
+    return
+
+@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)))
+def diffusion_test(out, t, x):
+    # cpp: kruells_shockaccel2_diffusion
+    Xsh = 0.001215
+    a = 0.0375
+    b = 0.0225
+    q = 1
+    x_a = carray(x, (2,))
+    diffval = np.sqrt(2.0 * kruells94_kappa_dep(x[0], Xsh, a, b, q))
+
+    out_a = carray(out, (2, 2))
+    out_a[0, 0] = diffval
+    out_a[1, 0] = 0
+    out_a[0, 1] = 0
+    out_a[1, 1] = 0
+    return
+
+#@njit(f8[:,:](f8, f8[:]))
+@cfunc(f8[:,:](f8, f8[:]))
 def diffusion(t, x):
     # cpp: kruells_shockaccel2_diffusion
     Xsh = 0.001215
@@ -126,13 +164,14 @@ class NumpyBatch:
         instance._states = states
         return instance
 
+from src.scheme import sde_scheme_euler_cython
 cachedir = "cache"
 figdir = "figures"
 def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
     init = [SDEPseudoParticle(i * 0.01, np.array([0.0, 1.0])) for i in range(20)]
-    sde = SDE(2, drift, diffusion, boundaries, init)
-    sdesolver = SDESolver(sde_scheme_euler)
+    sde = SDE(2, drift_test.address, diffusion_test.address, boundaries, init)
+    sdesolver = SDESolver(sde_scheme_euler_cython)
     start = time.perf_counter()
     sdesolver.solve(sde, 0.001)
     end = time.perf_counter()
@@ -157,7 +196,9 @@ def kruells9a1_newstyle():
     nfig.savefig(figdir + '/' + name + '.pdf')
 
 
+print(sde_scheme_euler_cython)
+
 kruells9a1_newstyle()
 #import cProfile
 #pr = cProfile.Profile()
-#cProfile.run('kruells9a1_newstyle()', filename="test-numba-math.perf")
+#cProfile.run('kruells9a1_newstyle()', filename="test-numba-cython-cfunc.perf")

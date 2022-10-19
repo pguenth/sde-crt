@@ -84,7 +84,8 @@ def _solve_backend(pps, rngs, timestep, sde, scheme):
                 continue
 
             rndvec = rng.standard_normal(sde.ndim)
-            new_t, new_x = scheme(pp, rndvec, timestep, sde.drift_callback, sde.diffusion_callback)
+            new_p = scheme(pp.t, pp.x, rndvec, timestep, sde.drift_callback, sde.diffusion_callback)
+            new_t, new_x = new_p.t, new_p.x
 
             pp.t = new_t
             pp.x = new_x
