@@ -86,6 +86,7 @@ def _solve_backend(pps, rngs, timestep, sde, scheme):
             rndvec = rng.standard_normal(sde.ndim)
             new_p = scheme(pp.t, pp.x, rndvec, timestep, sde.drift_callback, sde.diffusion_callback)
             new_t, new_x = new_p.t, new_p.x
+            #new_t, new_x = scheme(pp.t, pp.x, rndvec, timestep, sde.drift_callback, sde.diffusion_callback)
 
             pp.t = new_t
             pp.x = new_x
@@ -142,8 +143,8 @@ class SDESolver:
 
 
 
-def sde_scheme_euler(pp, rndvec, timestep, drift, diffusion):
-    t, x = pp.t, pp.x
+def sde_scheme_euler(t, x, rndvec, timestep, drift, diffusion):
+    #t, x = pp.t, pp.x
     t_new = t + timestep
     #drift_term = timestep * drift(t, x)
     #diff_term = np.dot(diffusion(t, x), rndvec)

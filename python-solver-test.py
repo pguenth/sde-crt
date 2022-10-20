@@ -164,14 +164,15 @@ class NumpyBatch:
         instance._states = states
         return instance
 
-from src.scheme import sde_scheme_euler_cython
+from src.scheme import sde_scheme_euler_cython, sde_scheme_euler_cpp
 cachedir = "cache"
 figdir = "figures"
 def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
     init = [SDEPseudoParticle(i * 0.01, np.array([0.0, 1.0])) for i in range(20)]
     sde = SDE(2, drift_test.address, diffusion_test.address, boundaries, init)
-    sdesolver = SDESolver(sde_scheme_euler_cython)
+    #sde = SDE(2, drift, diffusion, boundaries, init)
+    sdesolver = SDESolver(sde_scheme_euler_cpp)
     start = time.perf_counter()
     sdesolver.solve(sde, 0.001)
     end = time.perf_counter()
@@ -198,7 +199,7 @@ def kruells9a1_newstyle():
 
 print(sde_scheme_euler_cython)
 
-kruells9a1_newstyle()
-#import cProfile
-#pr = cProfile.Profile()
-#cProfile.run('kruells9a1_newstyle()', filename="test-numba-cython-cfunc.perf")
+#kruells9a1_newstyle()
+import cProfile
+pr = cProfile.Profile()
+cProfile.run('kruells9a1_newstyle()', filename="test-numba-cppscheme-cfunc.perf")
