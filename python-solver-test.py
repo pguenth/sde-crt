@@ -173,7 +173,7 @@ cachedir = "cache"
 figdir = "figures"
 def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
-    init = [SDEPseudoParticle(i * 0.01, np.array([0.0, 1.0])) for i in range(20)]
+    init = [SDEPseudoParticle(i * 0.001, np.array([0.0, 1.0])) for i in range(200)]
     sde = SDE(2, drift_test.address, diffusion_test.address, boundaries.address, initial_condition=init)
     #sde = SDE(2, drift, diffusion, boundaries, init)
     sdesolver = SDESolver(b'euler')
@@ -205,4 +205,4 @@ def kruells9a1_newstyle():
 kruells9a1_newstyle()
 #import cProfile
 #pr = cProfile.Profile()
-#cProfile.run('kruells9a1_newstyle()', filename="test-numba-cppscheme-cfunc.perf")
+#cProfile.run('kruells9a1_newstyle()', filename="test-cpp-propagation.perf")
