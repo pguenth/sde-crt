@@ -1,6 +1,6 @@
 # cython: profile=True
 # distutils: language = c++
-# distutils: sources = loop.cpp scheme.cpp
+# distutils: sources = src/c/loop.cpp src/c/scheme.cpp
 
 
 import numpy as np
