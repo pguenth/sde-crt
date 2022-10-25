@@ -2,7 +2,7 @@
 
 void ploop(std::vector<Eigen::VectorXd>& observations, double t0, 
         const Eigen::VectorXd& x0, coeff_call_t drift, coeff_call_t diffusion,
-        boundary_call_t boundary, rng_call_t rng, double timestep, 
+        boundary_call_t boundary, pcg32::state_type seed,/*rng_call_t rng,*/ double timestep, 
         const std::vector<double>& t_observe, const std::string& scheme_name){
 
     // the call signature is large because I think the effort of zipping
@@ -15,6 +15,9 @@ void ploop(std::vector<Eigen::VectorXd>& observations, double t0,
     int ndim = x0.rows();
     
     scheme_t scheme_call = scheme_registry_lookup(scheme_name);
+
+    auto rng = pcg32(seed);
+    auto dist = std::normal_distribution<double>(0.0);
 
     double t = t0;
     Eigen::VectorXd x(ndim);
@@ -29,7 +32,10 @@ void ploop(std::vector<Eigen::VectorXd>& observations, double t0,
         boundary_state = boundary(t, x);
         if (boundary_state) break;
 
-        rng(rndvec, ndim); 
+        //rng(rndvec, ndim); 
+        for (int i = 0; i < ndim; i++){
+            rndvec(i) = dist(rng);
+        }
 
         t = scheme_call(x_new, t, x, rndvec, timestep, drift, diffusion);
         x = x_new;
@@ -43,7 +49,7 @@ void ploop(std::vector<Eigen::VectorXd>& observations, double t0,
 
 void ploop_pointer(double *observations, double t0, 
         const Eigen::VectorXd& x0, coeff_call_t drift, coeff_call_t diffusion,
-        boundary_call_t boundary, rng_call_t rng, double timestep, 
+        boundary_call_t boundary, pcg32::state_type seed,/*rng_call_t rng,*/ double timestep, 
         const double *t_observe, int t_observe_count, const std::string& scheme_name){
 
     std::vector<Eigen::VectorXd> obs_vec;
@@ -53,7 +59,7 @@ void ploop_pointer(double *observations, double t0,
        t_obs_vec.push_back(t_observe[i]);
     }
 
-    ploop(obs_vec, t0, x0, drift, diffusion, boundary, rng, timestep, t_obs_vec, scheme_name);
+    ploop(obs_vec, t0, x0, drift, diffusion, boundary, seed, timestep, t_obs_vec, scheme_name);
 
     if (t_observe_count != obs_vec.size()){
         std::cout << "Warning: observation count mismatch!\n";

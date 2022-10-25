@@ -23,7 +23,9 @@ from libcpp.vector cimport vector
 #ctypedef void (*callback_t)(np.ndarray out, double t, np.ndarray x)
 #ctypedef void (*callback_t)(double *out, double t, double *x)
 
-cpdef void pyploop(double [:] x_obs, double t0, np.ndarray[np.float64_t] x0, long drift_addr, long diffusion_addr, long boundary_addr, long rng_addr, double timestep, double[:] t_obs, string scheme_name):
+cpdef void pyploop(double [:] x_obs, double t0, np.ndarray[np.float64_t] x0, long drift_addr,
+                   long diffusion_addr, long boundary_addr, long seed,#long rng_addr, 
+                   double timestep, double[:] t_obs, string scheme_name):
 
     #cdef vector[VectorXd] x_obs_cpp
     #cdef vector[double] t_obs_cpp
@@ -39,7 +41,7 @@ cpdef void pyploop(double [:] x_obs, double t0, np.ndarray[np.float64_t] x0, lon
 
     ploop_pointer(&x_obs[0], t0, Map[VectorXd](x0),
         <coeff_call_t>(<void *>drift_addr), <coeff_call_t>(<void *>diffusion_addr),
-        <boundary_call_t>(<void *>boundary_addr), <rng_call_t>(<void *>rng_addr),
+        <boundary_call_t>(<void *>boundary_addr), seed,# <rng_call_t>(<void *>rng_addr),
         timestep, &t_obs[0], len(t_obs), scheme_name)
 
 
