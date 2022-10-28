@@ -16,10 +16,10 @@ cdef extern from "loop.h":
     ctypedef void (*rng_call_t)(VectorXd& x_out, int ndim); 
     ctypedef int (*boundary_call_t)(double t, const VectorXd& x);
 
-    cdef void ploop (vector[VectorXd]& observations, double t0, const Map[VectorXd]& x0,
+    cdef int ploop (vector[VectorXd]& observations, double *t, Map[VectorXd]& x,
                      coeff_call_t drift, coeff_call_t diffusion, boundary_call_t boundary, long seed, # rng_call_t rng,
                      double timestep, vector[double]& t_observe, string scheme_name)
 
-    cdef void ploop_pointer (double *observations, double t0, const Map[VectorXd]& x0,
+    cdef int ploop_pointer (double *observations, double *t, Map[VectorXd]& x,
                       coeff_call_t drift, coeff_call_t diffusion, boundary_call_t boundary, long seed, # rng_call_t rng,
                       double timestep, const double *t_observe, int t_observe_count, string scheme_name)

@@ -15,6 +15,12 @@ import formats
 
 from numba import njit, f8, cfunc, types, carray
 
+import inspect 
+import logging
+
+logging.basicConfig(level=logging.INFO, #filename='log/tests_log_{}.log'.format(sys.argv[1]),
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 @njit(f8(f8, f8, f8, f8))
 def kruells94_beta(x, Xsh, a, b):
     return a - b * np.tanh(x / Xsh)
@@ -46,7 +52,8 @@ def drift(t, x):
     #return np.array([v0, v1])
     return np.array([0.0, 1.0])
 
-@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
+#@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
+@cfunc_coeff
 def drift_test(out, t, x):
     # cpp: kruells_shockaccel2_drift_94_2
     Xsh = 0.001215
@@ -64,7 +71,8 @@ def drift_test(out, t, x):
     out_a[1] = v1
     return
 
-@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
+#@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
+@cfunc_coeff
 def diffusion_test(out, t, x):
     # cpp: kruells_shockaccel2_diffusion
     Xsh = 0.001215
@@ -93,7 +101,8 @@ def diffusion(t, x):
     return diffval * np.array([[1.0, 0.0], [0.0, 0.0]])
 
 #@njit(boolean(f8, f8[:]))
-@cfunc(types.int32(types.double, types.CPointer(types.double)), cache=True)
+#@cfunc(types.int32(types.double, types.CPointer(types.double)), cache=True)
+@cfunc_boundary
 def boundaries(t, x):
     return 0
     if x > 0.2:
@@ -174,7 +183,7 @@ figdir = "figures"
 def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
     init = [SDEPseudoParticle(i * 0.001, np.array([0.0, 1.0])) for i in range(200)]
-    sde = SDE(2, drift_test.address, diffusion_test.address, boundaries.address, initial_condition=init)
+    sde = SDE(2, init, drift_test, diffusion_test, boundaries)
     #sde = SDE(2, drift, diffusion, boundaries, init)
     sdesolver = SDESolver(b'euler')
     start = time.perf_counter()

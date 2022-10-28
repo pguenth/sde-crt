@@ -1,75 +1,193 @@
-from numba import njit, float64, boolean, prange
+from numba import njit, float64, boolean, prange, types, cfunc
 from numba.experimental import jitclass
 from numba.typed import List
 from numba.core.typing.asnumbatype import as_numba_type
+from numba.core.ccallback import CFunc
 import numpy as np
 from numpy.random import SeedSequence, PCG64, Generator
 import copy
 import time
+import inspect
+import logging
 
 from src.c.pyloop import pyploop
 
+def _cfunc_sde_base(types_base, type_return, optional_func=None, param_types=None, **kwargs):
+    """
+    a convenience decorator for compiling coefficient functions (drift/diffusion)
+    to numba cfuncs callable from C++ code. In any case, the first three arguments
+    are `out, t, x`. `t` and `x` are the time and phase-space point at which
+    the function should evaluate; `out` is an array where the result should be
+    written to. Those three are automatically typed by this decorator.
+
+    The remaining arguments (referred to as 'parameters' further on) are by
+    default typed as double when calling this decorator without arguments:
+
+        @cfunc_coeff
+        def example(out, t, x, p0, p1, p2):
+            pass
+
+    Using arguments, another type can be chosen:
+
+        @cfunc_coeff(param_types=[types.int32, types.int32. types.double])
+        def example(out, t, x, an_int, another_int, a_double):
+            pass
+
+    Keyword arguments are passed through to numba.cfunc()
+    """
+    
+    def deco(func):
+        if param_types is None:
+            pcount = len(inspect.signature(func).parameters) - len(types_base)
+            ptypes = [types.double] * pcount
+        else:
+            ptypes = param_types
+
+        return cfunc(type_return(*types_base, *ptypes), **kwargs)(func)
+
+    if not optional_func is None:
+        return deco(optional_func)
+    else:
+        return deco
+
+def cfunc_coeff(*args, **kwargs):
+    arg_base = (types.CPointer(types.double), types.double, types.CPointer(types.double))
+    return _cfunc_sde_base(arg_base, types.void, *args, **kwargs)
+
+def cfunc_boundary(*args, **kwargs):
+    arg_base = (types.double, types.CPointer(types.double))
+    return _cfunc_sde_base(arg_base, types.int32, *args, **kwargs)
+
+
+
 class SDE:
-    def __init__(self, ndim, drift_callback=None, diffusion_callback=None, boundary_callback=None, rng_callback=None, initial_condition=None):
-        if not drift_callback is None:
-            self.drift_callback = drift_callback
-        elif not type(self).drift is SDE.drift:
-            self.drift_callback = self.drift
+    """
+    This class is intended to contain every physical (non-numerical)
+    aspect of an SDE.
+    """
+    def _set_callback(self, arg, name, decorator):
+        # decide where the callback is sourced from
+        if not arg is None:
+            cback = arg
+        elif type(getattr(self, name)) is getattr(SDE, name):
+            raise NotImplementedError(
+                    "Either {} must be given on initialisation or it must be overriden by inheritance".format(name))
         else:
-            raise NotImplementedError("Either drift_callback must be given on initialisation or drift must be overriden")
+            cback = getattr(self, name)
 
-        if not diffusion_callback is None:
-            self.diffusion_callback = diffusion_callback
-        elif not type(self).diffusion is SDE.diffusion:
-            self.diffusion_callback = self.diffusion
+        # check if it is numba compiled, if not try to do it now
+        if not type(cback) is CFunc:
+            logging.warning("Callback for {} is not a numba-compiled C function. Trying to compile with default types.")
+            cback = decorator(cback)
+
+        # set the resulting callback
+        setattr(self, name, cback)
+        setattr(self, "_noparam_" + name, cback)
+
+    def _set_parameters_of(self, name, parameters, cbtype):
+        if parameters is None:
+            setattr(self, name, getattr(self, "_noparam_" + name))
         else:
-            raise NotImplementedError("Either diffusion_callback must be given on initialisation or diffusion must be overriden")
+            orig = getattr(self, "_noparam_" + name)
+            if cbtype == "coeff":
+                newf = cfunc_coeff(lambda out, t, x : orig(out, t, x, *parameters))
+            elif cbtype == "boundary":
+                newf = cfunc_boundary(lambda t, x : orig(t, x, *parameters))
+            else:
+                raise ValueError("cbtype must be either coeff or boundary")
 
-        if not boundary_callback is None:
-            self.boundary_callback = boundary_callback
-        elif not type(self).boundary_callback is SDE.boundary_callback:
-            self.boundary_callback = self.boundary_callback
-        else:
-            raise NotImplementedError("Either boundaries_callback must be given on initialisation or boundaries must be overriden")
+            setattr(self, name, newf)
 
-        #if not rng_callback is None:
-        #    self.rng_callback = rng_callback
-        #elif not type(self).rng_callback is SDE.rng_callback:
-        #    self.rng_callback = self.rng_callback
-        #else:
-        #    raise NotImplementedError("Either rng_callback must be given on initialisation or boundaries must be overriden")
+    def __init__(self, ndim, initial_condition=None, drift=None, diffusion=None, boundary=None):
+        self._set_callback(drift, "drift", cfunc_coeff)
+        self._set_callback(diffusion, "diffusion", cfunc_coeff)
+        self._set_callback(boundary, "boundary", cfunc_boundary)
 
         self.initial_condition = initial_condition
         self.ndim = ndim
 
-    def drift(self, t, x):
+    def set_parameters(self, drift_parameters=None, diffusion_parameters=None, boundary_parameters=None):
+        """
+        set all or a subset of parameters at once
+        """
+        if not drift_parameters is None:
+            self.drift_parameters = drift_parameters
+
+        if not diffusion_parameters is None:
+            self.diffusion_parameters = diffusion_parameters
+
+        if not boundary_parameters is None:
+            self.boundary_parameters = boundary_parameters
+    
+    @property
+    def drift_parameters(self):
+        """
+        don't write to this
+        eventual solution: move callback into own class and move callback parameters into own class.
+        the latter then can provide custom item access and therefore can instruct recompilation
+        on single-parameter changes. currently not worth the effort, but would be cool
+        additionally, this would remove some repeated code from here
+        """
+        return self._drift_parameters
+
+    @drift_parameters.setter
+    def drift_parameters(self, p):
+        self._drift_parameters = p
+        self._set_parameters_of("drift", p, "coeff")
+    
+    @property
+    def diffusion_parameters(self):
+        """
+        see drift_parameters
+        """
+        return self._diffusion_parameters
+
+    @diffusion_parameters.setter
+    def diffusion_parameters(self, p):
+        self._diffusion_parameters = p
+        self._set_parameters_of("diffusion", p, "coeff")
+    
+    @property
+    def boundary_parameters(self):
+        """
+        see drift_parameters
+        """
+        return self._boundary_parameters
+
+    @boundary_parameters.setter
+    def boundary_parameters(self, p):
+        self._boundary_parameters = p
+        self._set_parameters_of("boundary", p, "boundary")
+        
+
+    def drift(self, out, t, x):
         """
         The drift term of the SDE model.
         It is passed a time and a position (an array [x0, x1,...])
-        and should return a drift vector with the same spatial
-        dimensionality
+        and should write a drift vector with the same spatial
+        dimensionality to out
         """
         pass
 
-    def diffusion(self, t, x):
+    def diffusion(self, out, t, x):
         """
         The diffusion term of the SDE model.
         It is passed a time and a position (an array [x0, x1,...])
-        and should return a diffusion matrix with the same spatial
-        dimensionality
+        and should write a diffusion matrix with the same spatial
+        dimensionality to out
         """
         pass
 
-    def boundary_callback(self, t, x):
+    def boundary(self, t, x):
         """
-        function returning None or a string, depending on wether
-        the particle hit a boundary (and which one in case it did)
+        function returning an int, depending on wether
+        the particle hit a boundary. Must return 0 if no boundary is
+        reached.
         """
         pass
+
+
     
-    def rng_callback(self, t, x):
-        pass
-            
 
 class SDEPseudoParticle:
     finished_reason : str
@@ -85,17 +203,6 @@ class SDEPseudoParticle:
     def copy(self):
         return SDEPseudoParticle(self.t, self.x, self.finished, self.finished_reason)
 
-def _solve_backend(pps, seeds, timestep, sde, scheme, observations):
-    observations = np.array(observations)
-    for pp, seed in zip(pps, seeds):
-        x = np.empty(len(observations) * len(pp.x))
-        pyploop(x, pp.t, pp.x, sde.drift_callback, sde.diffusion_callback,
-                sde.boundary_callback, seed, #sde.rng_callback,
-                timestep, observations, scheme)
-
-
-        #print(x)
-
 
 class SDEPPStateOldstyle:
     """ this class is for bodging this solver together with the C++ solver """
@@ -105,10 +212,58 @@ class SDEPPStateOldstyle:
         self.t = t
         self.x = x
 
-        if breakpoint_state == 'time':
+        if breakpoint_state == 1:
             self.breakpoint_state = PyBreakpointState.TIME
         else:
             self.breakpoint_state = PyBreakpointState.NONE
+
+
+class SDEResult:
+    def __init__(self, sde):
+        self.sde = copy.copy(sde)
+        self.observations = {}
+        self._escaped_lists = {}
+        #self._escaped_arrays = {}
+        #self._escaped_updated = True
+
+    def _add_observations(self, observation_times, positions):
+        for t, x in zip(observation_times, positions):
+            if not t in self.observations:
+                self.observations[t] = [x]
+            else:
+                self.observations[t].append(x)
+
+    def __getitem__(self, s):
+        self.observations[s] = np.array(self.observations[s])
+        return self.observations[s]
+
+    def _add_escaped(self, t, x, boundary_state):
+        if not boundary_state in self._escaped_lists:
+            self._escaped_lists[boundary_state] = {'t' : [], 'x' : []}
+
+        self._escaped_lists[boundary_state]['t'].append(t)
+        self._escaped_lists[boundary_state]['x'].append(x)
+
+        #self._escaped_updated = True
+         
+    @property
+    def escaped(self):
+        #for k in self._escaped_lists.keys():
+        #    self._escaped_arrays[k]['t'] = np.array(self._escaped[k]['t'])
+        #    self._escaped_arrays[k]['x'] = np.array(self._escaped[k]['x'])
+
+        #self._escaped_updated = False
+        #return self._escaped_arrays
+        return self._escaped_lists
+
+
+    def get_oldstype_pps(self, observation_time):
+        pstates = []
+        for pp in self[observation_time]:
+            pstates.append(SDEPPStateOldstyle(pp.t, np.array([pp.x]).T, pp.finished_reason))
+
+        return pstates
+
 
 
 class SDESolver:
@@ -118,34 +273,43 @@ class SDESolver:
         if not noise_term is None:
             print("WARNING: noise_term is currently ignored")
 
+    def solve(self, sde, timestep, observation_times):
+        res = SDEResult(sde)
 
-    def solve(self, sde, timestep, observations):
-        pps = []
-        for init_pp in sde.initial_condition:
-            pps.append(init_pp.copy())
-
-        #pps = np.array(pps)
-        seeds = SeedSequence(1234)
-        # maybe switch to PCG64DXSM (https://numpy.org/doc/stable/reference/random/upgrading-pcg64.html)
-        #rngs = [Generator(PCG64(s)) for s in seeds.spawn(len(pps))] 
+        observation_times = np.array(observation_times)
+        seeds = list(range(len(sde.initial_condition)))
 
         start = time.perf_counter()
-        _solve_backend(pps, list(range(len(pps))), timestep, sde, self.scheme, observations)
+        time_cpp = 0
+
+        observations_contiguous = np.empty(len(observation_times) * sde.ndim)
+        t_array = np.empty(1)
+        for pp, seed in zip(sde.initial_condition, seeds):
+            start_cpp = time.perf_counter()
+            t_array[0] = pp.t
+
+            boundary_state = pyploop(observations_contiguous, t_array, pp.x,
+                                     sde.drift.address, sde.diffusion.address,
+                                     sde.boundary.address, seed, timestep, 
+                                     observation_times, self.scheme)
+
+            end_cpp = time.perf_counter()
+            time_cpp += end_cpp - start_cpp
+
+            if boundary_state != 0:
+                res._add_escaped(t_array[0], pp.x, boundary_state)
+
+            res._add_observations(observation_times, observations_contiguous.reshape((-1, sde.ndim)))
+
         end = time.perf_counter()
-        print("Elapsed backend = {}us".format((end - start) * 1e6))
-        return pps
+        logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))
+        logging.info("Runtime for propagation and transformation: {}us".format((end - start) * 1e6))
+
+        return res
 
     def solve_oldstyle(self, sde, timestep):
         pps = self.solve(sde, timestep)
         return SDESolver.get_oldstyle_like_states(pps)
-
-    @staticmethod
-    def get_oldstyle_like_states(newstyle_pps):
-        pstates = []
-        for pp in newstyle_pps:
-            pstates.append(SDEPPStateOldstyle(pp.t, np.array([pp.x]).T, pp.finished_reason))
-
-        return pstates
 
 
 

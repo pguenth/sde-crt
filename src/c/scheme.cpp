@@ -1,6 +1,6 @@
 #include "scheme.h"
 
-double scheme_euler(Eigen::VectorXd& x_out, double t, const Eigen::VectorXd& x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion) {
+double scheme_euler(Eigen::VectorXd& x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion) {
     int ndim = x.rows();
     Eigen::VectorXd drift_buf(ndim);
     Eigen::MatrixXd diffusion_buf(ndim, ndim);
