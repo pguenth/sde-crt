@@ -25,9 +25,9 @@ int ploop(std::vector<Eigen::VectorXd> &observations, double *t,
     observations.reserve(t_observe.size());
 
     auto observe_it = t_observe.begin();
-    int boundary_state;
+    int boundary_state = -1;
     while (observe_it != t_observe.end()){
-        boundary_state = boundary(*t, x);
+        boundary_state = boundary(*t, x.data());
         if (boundary_state) break;
 
         //rng(rndvec, ndim); 
@@ -47,7 +47,7 @@ int ploop(std::vector<Eigen::VectorXd> &observations, double *t,
     return boundary_state;
 }
 
-int ploop_pointer(double *observations, double *t,
+int ploop_pointer(double *observations, int *observation_count, double *t,
         Eigen::Map<Eigen::VectorXd> &x, coeff_call_t drift, coeff_call_t diffusion,
         boundary_call_t boundary, pcg32::state_type seed,/*rng_call_t rng,*/ double timestep, 
         const double *t_observe, int t_observe_count, const std::string& scheme_name){
@@ -61,9 +61,10 @@ int ploop_pointer(double *observations, double *t,
 
     int boundary_state = ploop(obs_vec, t, x, drift, diffusion, boundary, seed, timestep, t_obs_vec, scheme_name);
 
-    if (t_observe_count != obs_vec.size()){
-        std::cout << "Warning: observation count mismatch!\n";
-    }
+    // unneccessary: fewer observations are expected, more cannot happen
+    //if (t_observe_count != obs_vec.size()){
+    //    std::cout << "Warning: observation count mismatch!\n";
+    //}
 
     int ndim = x.rows();
     int i = 0;
@@ -74,6 +75,8 @@ int ploop_pointer(double *observations, double *t,
         }
         i++;
     }
+
+    *observation_count = obs_vec.size();
 
     return boundary_state;
 }

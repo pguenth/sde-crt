@@ -104,8 +104,12 @@ def diffusion(t, x):
 #@cfunc(types.int32(types.double, types.CPointer(types.double)), cache=True)
 @cfunc_boundary
 def boundaries(t, x):
+    ###
     return 0
-    if x > 0.2:
+    ###
+
+    x_a = carray(x, (2,))
+    if np.abs(x_a[0]) > 0.005:
         return 1
     else:
         return 0
@@ -130,12 +134,13 @@ class NumpyBatch:
 
         print("start timing")
         start = time.perf_counter()
-        pps = self._solver.solve(self._sde, 0.001)
+
+        solution = self._solver.solve(self._sde, self._params['dt'], [self._params['Tmax']])
+
         end = time.perf_counter()
         print("finished timing")
         print("Elapsed = {}us".format((end - start) * 1e6))
-        #self._states = np.array([SDESolver.get_oldstyle_like_states(pps)]).T
-        self._states = SDESolver.get_oldstyle_like_states(pps)
+        self._states = solution.get_oldstyle_pps(self._params['Tmax'])
         return len(self._states)
 
     def step_all(self, steps=1):
@@ -182,30 +187,31 @@ cachedir = "cache"
 figdir = "figures"
 def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
-    init = [SDEPseudoParticle(i * 0.001, np.array([0.0, 1.0])) for i in range(200)]
+
+    T = 20.0
+    t_inj = 0.001
+    dt = 0.001
+    n_particle = int(T / t_inj)
+
+    init = [SDEPseudoParticle(i * t_inj, np.array([0.0, 1.0])) for i in range(n_particle)]
     sde = SDE(2, init, drift_test, diffusion_test, boundaries)
-    #sde = SDE(2, drift, diffusion, boundaries, init)
     sdesolver = SDESolver(b'euler')
-    start = time.perf_counter()
-    sdesolver.solve(sde, 0.001, [0.2])
-    end = time.perf_counter()
-    print("Elapsed = {}us".format((end - start) * 1e6))
-    exit()
 
     param = { 'sde' : sde,
               'solver' : sdesolver,
+              'dt' : dt,
             }
 
     #times = np.array([0.64, 2.0, 6.4, 20, 200])
-    times = np.array([0.2])
+    times = np.array([T])
 
     cache = None#PickleNodeCache(cachedir, name)
     histosetx, histosetp, powerlaw = chains.get_chain_times_maxpl(NumpyBatch, cache, param, times, confine_x=0.05, bin_count=30)
-    histosetx.map_tree(lambda b : b.set(nthreads=8), "batch")
+    #histosetx.map_tree(lambda b : b.set(nthreads=8), "batch")
 
     nfig = NodeFigure(formats.doublehist)
     nfig.add(histosetx, 0)
-    #nfig.add(histosetp, 1)
+    nfig.add(histosetp, 1)
     #nfig.add(powerlaw, 1)
     nfig.savefig(figdir + '/' + name + '.pdf')
 

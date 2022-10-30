@@ -1,4 +1,5 @@
 from numba import njit, float64, boolean, prange, types, cfunc
+import ctypes
 from numba.experimental import jitclass
 from numba.typed import List
 from numba.core.typing.asnumbatype import as_numba_type
@@ -10,7 +11,13 @@ import time
 import inspect
 import logging
 
-from src.c.pyloop import pyploop
+from src.c.pyloop import pyploop, print_double
+
+from numba.extending import get_cython_function_address
+
+print_double_addr = get_cython_function_address("src.c.pyloop", "print_double")
+print_double_numba = ctypes.CFUNCTYPE(None, ctypes.c_double)(print_double_addr)
+
 
 def _cfunc_sde_base(types_base, type_return, optional_func=None, param_types=None, **kwargs):
     """
@@ -212,13 +219,13 @@ class SDEPPStateOldstyle:
         self.t = t
         self.x = x
 
-        if breakpoint_state == 1:
+        if breakpoint_state == 0:
             self.breakpoint_state = PyBreakpointState.TIME
         else:
             self.breakpoint_state = PyBreakpointState.NONE
 
 
-class SDEResult:
+class SDESolution:
     def __init__(self, sde):
         self.sde = copy.copy(sde)
         self.observations = {}
@@ -226,8 +233,8 @@ class SDEResult:
         #self._escaped_arrays = {}
         #self._escaped_updated = True
 
-    def _add_observations(self, observation_times, positions):
-        for t, x in zip(observation_times, positions):
+    def _add_observations(self, observation_times, positions, observation_count):
+        for t, x in list(zip(observation_times, positions.copy()))[:observation_count]:
             if not t in self.observations:
                 self.observations[t] = [x]
             else:
@@ -256,11 +263,19 @@ class SDEResult:
         #return self._escaped_arrays
         return self._escaped_lists
 
+    @property
+    def observation_times(self):
+        return self.observations.keys()
 
-    def get_oldstype_pps(self, observation_time):
+    @property
+    def boundary_states(self):
+        return self._escaped_lists.keys()
+
+
+    def get_oldstyle_pps(self, observation_time):
         pstates = []
         for pp in self[observation_time]:
-            pstates.append(SDEPPStateOldstyle(pp.t, np.array([pp.x]).T, pp.finished_reason))
+            pstates.append(SDEPPStateOldstyle(observation_time, np.array([pp]).T, 0))
 
         return pstates
 
@@ -274,7 +289,7 @@ class SDESolver:
             print("WARNING: noise_term is currently ignored")
 
     def solve(self, sde, timestep, observation_times):
-        res = SDEResult(sde)
+        res = SDESolution(sde)
 
         observation_times = np.array(observation_times)
         seeds = list(range(len(sde.initial_condition)))
@@ -283,14 +298,17 @@ class SDESolver:
         time_cpp = 0
 
         observations_contiguous = np.empty(len(observation_times) * sde.ndim)
-        t_array = np.empty(1)
+        # these arrays are needed because we want to give the loop pointers
+        t_array = np.empty(1, dtype=np.float64)
+        observation_count_array = np.empty(1, dtype=np.int32)
         for pp, seed in zip(sde.initial_condition, seeds):
             start_cpp = time.perf_counter()
             t_array[0] = pp.t
 
-            boundary_state = pyploop(observations_contiguous, t_array, pp.x,
-                                     sde.drift.address, sde.diffusion.address,
-                                     sde.boundary.address, seed, timestep, 
+            boundary_state = pyploop(observations_contiguous, observation_count_array, t_array, pp.x,
+                                     sde.drift.address, sde.diffusion.address, sde.boundary.address,
+                                     #ctypes.cast(sde.drift, ctypes.c_void_p).value, ctypes.cast(sde.diffusion, ctypes.c_void_p).value, ctypes.cast(sde.boundary, ctypes.c_void_p).value,
+                                     seed, timestep, 
                                      observation_times, self.scheme)
 
             end_cpp = time.perf_counter()
@@ -299,7 +317,7 @@ class SDESolver:
             if boundary_state != 0:
                 res._add_escaped(t_array[0], pp.x, boundary_state)
 
-            res._add_observations(observation_times, observations_contiguous.reshape((-1, sde.ndim)))
+            res._add_observations(observation_times, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0])
 
         end = time.perf_counter()
         logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))
@@ -313,11 +331,11 @@ class SDESolver:
 
 
 
-def sde_scheme_euler(t, x, rndvec, timestep, drift, diffusion):
-    #t, x = pp.t, pp.x
-    t_new = t + timestep
-    #drift_term = timestep * drift(t, x)
-    #diff_term = np.dot(diffusion(t, x), rndvec)
-    x_new = x + timestep * drift(t, x) + np.dot(diffusion(t, x), rndvec) * np.sqrt(timestep)
-    #print(x_new, drift_term, diff_term)
-    return t_new, x_new
+#def sde_scheme_euler(t, x, rndvec, timestep, drift, diffusion):
+#    #t, x = pp.t, pp.x
+#    t_new = t + timestep
+#    #drift_term = timestep * drift(t, x)
+#    #diff_term = np.dot(diffusion(t, x), rndvec)
+#    x_new = x + timestep * drift(t, x) + np.dot(diffusion(t, x), rndvec) * np.sqrt(timestep)
+#    #print(x_new, drift_term, diff_term)
+#    return t_new, x_new

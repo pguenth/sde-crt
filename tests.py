@@ -743,11 +743,11 @@ def kruells9a1():
             }
 
     #times = np.array([0.64, 2.0, 6.4, 20, 200])
-    times = np.array([0.2])
+    times = np.array([20])
 
     cache = PickleNodeCache(cachedir, name)
     histosetx, histosetp, powerlaw = chains.get_chain_times_maxpl(PyBatchKruells9, cache, param, times, confine_x=0.05, bin_count=30)
-    histosetx.map_tree(lambda b : b.set(nthreads=8), "batch")
+    #histosetx.map_tree(lambda b : b.set(nthreads=8), "batch")
 
     nfig = NodeFigure(formats.doublehist)
     nfig.add(histosetx, 0)
