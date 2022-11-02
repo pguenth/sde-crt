@@ -37,24 +37,8 @@ def kruells94_kappa_dep(x, Xsh, a, b, q):
 def kruells94_dkappadx_dep(x, Xsh, a, b, q):
     return 2 * q * kruells94_beta(x, Xsh, a, b) * kruells94_dbetadx(x, Xsh, b)
 
-#@njit(f8[:](f8, f8[:]))
-@cfunc(f8[:](f8, f8[:]), cache=True)
-def drift(t, x):
-    # cpp: kruells_shockaccel2_drift_94_2
-    Xsh = 0.001215
-    a = 0.0375
-    b = 0.0225
-    k_syn = 0
-    q = 1
-
-    #v0 = kruells94_dkappadx_dep(x[0], Xsh, a, b, q) + kruells94_beta(x[0], Xsh, a, b)
-    #v1 = - (x[1]) * (kruells94_dbetadx(x[0], Xsh, b) / 3 + k_syn * x[1])
-    #return np.array([v0, v1])
-    return np.array([0.0, 1.0])
-
-#@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
 @cfunc_coeff
-def drift_test(out, t, x):
+def drift(out, t, x):
     # cpp: kruells_shockaccel2_drift_94_2
     Xsh = 0.001215
     a = 0.0375
@@ -71,9 +55,8 @@ def drift_test(out, t, x):
     out_a[1] = v1
     return
 
-#@cfunc(types.void(types.CPointer(types.double), types.double, types.CPointer(types.double)), cache=True)
 @cfunc_coeff
-def diffusion_test(out, t, x):
+def diffusion(out, t, x):
     # cpp: kruells_shockaccel2_diffusion
     Xsh = 0.001215
     a = 0.0375
@@ -89,19 +72,6 @@ def diffusion_test(out, t, x):
     out_a[1, 1] = 0
     return
 
-#@njit(f8[:,:](f8, f8[:]))
-@cfunc(f8[:,:](f8, f8[:]), cache=True)
-def diffusion(t, x):
-    # cpp: kruells_shockaccel2_diffusion
-    Xsh = 0.001215
-    a = 0.0375
-    b = 0.0225
-    q = 1
-    diffval = np.sqrt(2.0 * kruells94_kappa_dep(x[0], Xsh, a, b, q))
-    return diffval * np.array([[1.0, 0.0], [0.0, 0.0]])
-
-#@njit(boolean(f8, f8[:]))
-#@cfunc(types.int32(types.double, types.CPointer(types.double)), cache=True)
 @cfunc_boundary
 def boundaries(t, x):
     ###
@@ -113,10 +83,6 @@ def boundaries(t, x):
         return 1
     else:
         return 0
-
-
-print("compiled numba cfuncs")
-
 
 # this class is for testing purposes only
 class NumpyBatch:
@@ -182,7 +148,6 @@ class NumpyBatch:
         instance._states = states
         return instance
 
-#from src.scheme import sde_scheme_euler_cython, sde_scheme_euler_cpp
 cachedir = "cache"
 figdir = "figures"
 def kruells9a1_newstyle():
@@ -194,7 +159,7 @@ def kruells9a1_newstyle():
     n_particle = int(T / t_inj)
 
     init = [SDEPseudoParticle(i * t_inj, np.array([0.0, 1.0])) for i in range(n_particle)]
-    sde = SDE(2, init, drift_test, diffusion_test, boundaries)
+    sde = SDE(2, init, drift, diffusion, boundaries)
     sdesolver = SDESolver(b'euler')
 
     param = { 'sde' : sde,

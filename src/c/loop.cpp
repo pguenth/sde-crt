@@ -1,6 +1,6 @@
 #include "loop.h"
 
-int ploop(std::vector<Eigen::VectorXd> &observations, double *t, 
+int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t, 
         Eigen::Map<Eigen::VectorXd> &x, coeff_call_t drift, coeff_call_t diffusion,
         boundary_call_t boundary, pcg32::state_type seed,/*rng_call_t rng,*/ double timestep, 
         const std::vector<double>& t_observe, const std::string& scheme_name){
@@ -47,7 +47,7 @@ int ploop(std::vector<Eigen::VectorXd> &observations, double *t,
     return boundary_state;
 }
 
-int ploop_pointer(double *observations, int *observation_count, double *t,
+int integration_loop_p(double *observations, int *observation_count, double *t,
         Eigen::Map<Eigen::VectorXd> &x, coeff_call_t drift, coeff_call_t diffusion,
         boundary_call_t boundary, pcg32::state_type seed,/*rng_call_t rng,*/ double timestep, 
         const double *t_observe, int t_observe_count, const std::string& scheme_name){
@@ -68,7 +68,6 @@ int ploop_pointer(double *observations, int *observation_count, double *t,
 
     int ndim = x.rows();
     int i = 0;
-    //double *observations = new double[ndim * obs_vec.size()];
     for (auto& vec : obs_vec){
         for (int j = 0; j < ndim; j++){
             observations[i * ndim + j] = vec(j);

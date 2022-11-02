@@ -11,15 +11,37 @@ import time
 import inspect
 import logging
 
-from src.c.pyloop import pyploop, print_double
+from collections.abc import MutableSequence
+
+from src.c.pyloop import py_integration_loop
+from src.c.cprint import print_double
 
 from numba.extending import get_cython_function_address
 
-print_double_addr = get_cython_function_address("src.c.pyloop", "print_double")
+print_double_addr = get_cython_function_address("src.c.cprint", "print_double")
 print_double_numba = ctypes.CFUNCTYPE(None, ctypes.c_double)(print_double_addr)
 
 
 def _cfunc_sde_base(types_base, type_return, optional_func=None, param_types=None, **kwargs):
+    """
+    Generalization of cfunc_coeff and cfunc_boundary to avoid rewriting code.
+    """
+    
+    def deco(func):
+        if param_types is None:
+            pcount = len(inspect.signature(func).parameters) - len(types_base)
+            ptypes = [types.double] * pcount
+        else:
+            ptypes = param_types
+
+        return cfunc(type_return(*types_base, *ptypes), **kwargs)(func)
+
+    if not optional_func is None:
+        return deco(optional_func)
+    else:
+        return deco
+
+def cfunc_coeff(*args, **kwargs):
     """
     a convenience decorator for compiling coefficient functions (drift/diffusion)
     to numba cfuncs callable from C++ code. In any case, the first three arguments
@@ -42,36 +64,54 @@ def _cfunc_sde_base(types_base, type_return, optional_func=None, param_types=Non
 
     Keyword arguments are passed through to numba.cfunc()
     """
-    
-    def deco(func):
-        if param_types is None:
-            pcount = len(inspect.signature(func).parameters) - len(types_base)
-            ptypes = [types.double] * pcount
-        else:
-            ptypes = param_types
-
-        return cfunc(type_return(*types_base, *ptypes), **kwargs)(func)
-
-    if not optional_func is None:
-        return deco(optional_func)
-    else:
-        return deco
-
-def cfunc_coeff(*args, **kwargs):
     arg_base = (types.CPointer(types.double), types.double, types.CPointer(types.double))
     return _cfunc_sde_base(arg_base, types.void, *args, **kwargs)
 
 def cfunc_boundary(*args, **kwargs):
+    """
+    a convenience decorator for compiling the boundary function to a numba cfunc
+    callable from C++ code. In any case, the first two arguments
+    are `t` and `x`, the time and phase-space point at which
+    the function should evaluate; those are automatically typed by this 
+    decorator. It must return an int stating wether the
+    boundary was reached (0: no boundary reached; -1: reserved; other:
+    a boundary was reached). The value can be used to differentiate between
+    different boundaries.
+
+    The remaining arguments (referred to as 'parameters' further on) are by
+    default typed as double when calling this decorator without arguments:
+
+        @cfunc_coeff
+        def example(t, x, p0, p1, p2):
+            pass
+
+    Using arguments, another type can be chosen:
+
+        @cfunc_coeff(param_types=[types.int32, types.int32. types.double])
+        def example(t, x, an_int, another_int, a_double):
+            pass
+
+    Keyword arguments are passed through to numba.cfunc()
+    """
     arg_base = (types.double, types.CPointer(types.double))
     return _cfunc_sde_base(arg_base, types.int32, *args, **kwargs)
 
-
-
 class SDE:
     """
-    This class is intended to contain every physical (non-numerical)
-    aspect of an SDE.
+    This class is intended to contain the physical (i.e. non-numerical)
+    aspects of an SDE. Those are:
+        - the coefficients (drift, diffusion)
+        - parameters for those
+        - boundaries
+        - initial condition
+        - number of dimensions of the problem
+
+    The coefficient and boundary callbacks can be set either by passing 
+    callbacks to the constructor or by overriding the respective 
+    functions when inheriting this class (or a combination of both).
+    Both are automatically compiled to cfuncs if not done manually.
     """
+
     def _set_callback(self, arg, name, decorator):
         # decide where the callback is sourced from
         if not arg is None:
@@ -129,7 +169,7 @@ class SDE:
     @property
     def drift_parameters(self):
         """
-        don't write to this
+        don't write to this (apart from overriding in whole)
         eventual solution: move callback into own class and move callback parameters into own class.
         the latter then can provide custom item access and therefore can instruct recompilation
         on single-parameter changes. currently not worth the effort, but would be cool
@@ -171,7 +211,7 @@ class SDE:
         """
         The drift term of the SDE model.
         It is passed a time and a position (an array [x0, x1,...])
-        and should write a drift vector with the same spatial
+        and must write a drift vector with the same spatial
         dimensionality to out
         """
         pass
@@ -180,7 +220,7 @@ class SDE:
         """
         The diffusion term of the SDE model.
         It is passed a time and a position (an array [x0, x1,...])
-        and should write a diffusion matrix with the same spatial
+        and must write a diffusion matrix with the same spatial
         dimensionality to out
         """
         pass
@@ -189,7 +229,8 @@ class SDE:
         """
         function returning an int, depending on wether
         the particle hit a boundary. Must return 0 if no boundary is
-        reached.
+        reached and some other value (apart from -1, which is reserved)
+        if a boundary is reached.
         """
         pass
 
@@ -291,7 +332,7 @@ class SDESolver:
     def solve(self, sde, timestep, observation_times):
         res = SDESolution(sde)
 
-        observation_times = np.array(observation_times)
+        observation_times = np.array(sorted(observation_times))
         seeds = list(range(len(sde.initial_condition)))
 
         start = time.perf_counter()
@@ -305,9 +346,8 @@ class SDESolver:
             start_cpp = time.perf_counter()
             t_array[0] = pp.t
 
-            boundary_state = pyploop(observations_contiguous, observation_count_array, t_array, pp.x,
+            boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp.x,
                                      sde.drift.address, sde.diffusion.address, sde.boundary.address,
-                                     #ctypes.cast(sde.drift, ctypes.c_void_p).value, ctypes.cast(sde.diffusion, ctypes.c_void_p).value, ctypes.cast(sde.boundary, ctypes.c_void_p).value,
                                      seed, timestep, 
                                      observation_times, self.scheme)
 
@@ -329,13 +369,3 @@ class SDESolver:
         pps = self.solve(sde, timestep)
         return SDESolver.get_oldstyle_like_states(pps)
 
-
-
-#def sde_scheme_euler(t, x, rndvec, timestep, drift, diffusion):
-#    #t, x = pp.t, pp.x
-#    t_new = t + timestep
-#    #drift_term = timestep * drift(t, x)
-#    #diff_term = np.dot(diffusion(t, x), rndvec)
-#    x_new = x + timestep * drift(t, x) + np.dot(diffusion(t, x), rndvec) * np.sqrt(timestep)
-#    #print(x_new, drift_term, diff_term)
-#    return t_new, x_new
