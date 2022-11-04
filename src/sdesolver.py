@@ -11,10 +11,9 @@ import time
 import inspect
 import logging
 
-from collections.abc import MutableSequence
-
 from src.c.pyloop import py_integration_loop
 from src.c.cprint import print_double
+from src.datastructures import SDEPPStateOldstyle
 
 from numba.extending import get_cython_function_address
 
@@ -103,7 +102,7 @@ class SDE:
         - the coefficients (drift, diffusion)
         - parameters for those
         - boundaries
-        - initial condition
+        - initial condition (list of 2-tuples of t and [x])
         - number of dimensions of the problem
 
     The coefficient and boundary callbacks can be set either by passing 
@@ -132,6 +131,7 @@ class SDE:
         setattr(self, "_noparam_" + name, cback)
 
     def _set_parameters_of(self, name, parameters, cbtype):
+        parameters = tuple(parameters)
         if parameters is None:
             setattr(self, name, getattr(self, "_noparam_" + name))
         else:
@@ -149,7 +149,7 @@ class SDE:
         self._set_callback(drift, "drift", cfunc_coeff)
         self._set_callback(diffusion, "diffusion", cfunc_coeff)
         self._set_callback(boundary, "boundary", cfunc_boundary)
-
+        
         self.initial_condition = initial_condition
         self.ndim = ndim
 
@@ -235,36 +235,6 @@ class SDE:
         pass
 
 
-    
-
-class SDEPseudoParticle:
-    finished_reason : str
-    def __init__(self, t0, x0, finished=False, finished_reason='none'):
-        self.t = t0
-        self.x = x0
-        self.finished = finished
-        self.finished_reason = finished_reason
-
-    def __deepcopy__(self, memo):
-        return self.copy()
-
-    def copy(self):
-        return SDEPseudoParticle(self.t, self.x, self.finished, self.finished_reason)
-
-
-class SDEPPStateOldstyle:
-    """ this class is for bodging this solver together with the C++ solver """
-    def __init__(self, t, x, breakpoint_state):
-        from pybatch.pybreakpointstate import PyBreakpointState
-
-        self.t = t
-        self.x = x
-
-        if breakpoint_state == 0:
-            self.breakpoint_state = PyBreakpointState.TIME
-        else:
-            self.breakpoint_state = PyBreakpointState.NONE
-
 
 class SDESolution:
     def __init__(self, sde):
@@ -342,11 +312,14 @@ class SDESolver:
         # these arrays are needed because we want to give the loop pointers
         t_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
-        for pp, seed in zip(sde.initial_condition, seeds):
-            start_cpp = time.perf_counter()
-            t_array[0] = pp.t
 
-            boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp.x,
+        init_copy = copy.copy(sde.initial_condition)
+
+        for (pp_t, pp_x), seed in zip(init_copy, seeds):
+            start_cpp = time.perf_counter()
+            t_array[0] = pp_t
+
+            boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
                                      sde.drift.address, sde.diffusion.address, sde.boundary.address,
                                      seed, timestep, 
                                      observation_times, self.scheme)
@@ -355,7 +328,7 @@ class SDESolver:
             time_cpp += end_cpp - start_cpp
 
             if boundary_state != 0:
-                res._add_escaped(t_array[0], pp.x, boundary_state)
+                res._add_escaped(t_array[0], pp_x, boundary_state)
 
             res._add_observations(observation_times, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0])
 
@@ -364,8 +337,3 @@ class SDESolver:
         logging.info("Runtime for propagation and transformation: {}us".format((end - start) * 1e6))
 
         return res
-
-    def solve_oldstyle(self, sde, timestep):
-        pps = self.solve(sde, timestep)
-        return SDESolver.get_oldstyle_like_states(pps)
-

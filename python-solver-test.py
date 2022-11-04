@@ -38,39 +38,26 @@ def kruells94_dkappadx_dep(x, Xsh, a, b, q):
     return 2 * q * kruells94_beta(x, Xsh, a, b) * kruells94_dbetadx(x, Xsh, b)
 
 @cfunc_coeff
-def drift(out, t, x):
+def drift(out, t, x, Xsh, a, b, k_syn, q):
     # cpp: kruells_shockaccel2_drift_94_2
-    Xsh = 0.001215
-    a = 0.0375
-    b = 0.0225
-    k_syn = 0
-    q = 1
 
-    x_a = carray(x, (2,))
-    v0 = kruells94_dkappadx_dep(x_a[0], Xsh, a, b, q) + kruells94_beta(x_a[0], Xsh, a, b)
-    v1 = - (x_a[1]) * (kruells94_dbetadx(x_a[0], Xsh, b) / 3 + k_syn * x_a[1])
+    v0 = kruells94_dkappadx_dep(x[0], Xsh, a, b, q) + kruells94_beta(x[0], Xsh, a, b)
+    v1 = - (x[1]) * (kruells94_dbetadx(x[0], Xsh, b) / 3 + k_syn * x[1])
 
-    out_a = carray(out, (1,))
-    out_a[0] = v0
-    out_a[1] = v1
-    return
+    out[0] = v0
+    out[1] = v1
 
 @cfunc_coeff
-def diffusion(out, t, x):
+def diffusion(out, t, x, Xsh, a, b, q):
     # cpp: kruells_shockaccel2_diffusion
-    Xsh = 0.001215
-    a = 0.0375
-    b = 0.0225
-    q = 1
-    x_a = carray(x, (2,))
     diffval = np.sqrt(2.0 * kruells94_kappa_dep(x[0], Xsh, a, b, q))
 
+    # here carray is required to reshape the contiguous pointer
     out_a = carray(out, (2, 2))
     out_a[0, 0] = diffval
     out_a[1, 0] = 0
     out_a[0, 1] = 0
     out_a[1, 1] = 0
-    return
 
 @cfunc_boundary
 def boundaries(t, x):
@@ -136,9 +123,6 @@ class NumpyBatch:
     # pickling doesnt create a new batch with full functionality
     # it only restores the states and integrator values
     def __reduce__(self):
-        if type(self) == PyPseudoParticleBatch:
-            raise ValueError("Cannot __reduce__ a PyPseudoParticleBatch (you must inherit from this class)")
-
         print("Reducing...")
         return type(self)._reconstruct, (self._params, self.states)
 
@@ -154,12 +138,17 @@ def kruells9a1_newstyle():
     name = inspect.currentframe().f_code.co_name
 
     T = 20.0
-    t_inj = 0.001
+    t_inj = 0.01
     dt = 0.001
     n_particle = int(T / t_inj)
 
-    init = [SDEPseudoParticle(i * t_inj, np.array([0.0, 1.0])) for i in range(n_particle)]
+    x0 = np.array([0.0, 1.0])
+    init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
+    #print(init)
     sde = SDE(2, init, drift, diffusion, boundaries)
+    sde.drift_parameters = [0.001215, 0.0375, 0.0225, 0, 1]
+    sde.diffusion_parameters = [0.001215, 0.0375, 0.0225, 1]
+
     sdesolver = SDESolver(b'euler')
 
     param = { 'sde' : sde,

@@ -59,7 +59,7 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
        t_obs_vec.push_back(t_observe[i]);
     }
 
-    int boundary_state = ploop(obs_vec, t, x, drift, diffusion, boundary, seed, timestep, t_obs_vec, scheme_name);
+    int boundary_state = integration_loop(obs_vec, t, x, drift, diffusion, boundary, seed, timestep, t_obs_vec, scheme_name);
 
     // unneccessary: fewer observations are expected, more cannot happen
     //if (t_observe_count != obs_vec.size()){
