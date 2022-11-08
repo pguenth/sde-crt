@@ -14,7 +14,6 @@ import chains
 import formats
 
 from numba import njit, f8, cfunc, types, carray
-import numba
 
 import inspect 
 import logging
@@ -40,16 +39,9 @@ def kruells94_kappa_dep(x, Xsh, a, b, q):
 def kruells94_dkappadx_dep(x, Xsh, a, b, q):
     return 2 * q * kruells94_beta(x, Xsh, a, b) * kruells94_dbetadx(x, Xsh, b)
 
-#def cfunc_ndarray(params):
-#    list(inspect.signature(self._pyfunc).parameters.keys())
-#    def deco(func):
-
-
-
     
 # test accessing a numpy array in a coefficient function
-def drift_map_dir(out, t, x, addr):
-    arr = carray(address_as_void_pointer(addr), 5, dtype=np.float64)
+def drift_map_dir(out, t, x, arr):
     v0 = kruells94_dkappadx_dep(x[0], arr[0], arr[1], arr[2], arr[4]) + kruells94_beta(x[0], arr[0], arr[1], arr[2])
     v1 = - (x[1]) * (kruells94_dbetadx(x[0], arr[0], arr[2]) / 3 + arr[3] * x[1])
 
@@ -182,7 +174,12 @@ def kruells9a1_newstyle():
             'addr' : arr.ctypes.data,#_as(ctypes.POINTER(ctypes.c_double)),
             'arr' : arr
         }
-    drift_map_cb = SDECallbackCoeff(drift_map_dir, parameter_types={'arr': types.double[:], 'addr': types.int64})
+    drift_map_dir_cb = SDECallbackCoeff(drift_map_dir,
+                                    parameter_types={'arr': types.double[:]})
+    drift_map_cb = SDECallbackCoeff(drift_map,
+                                    parameter_types={'addr': types.int64})
+
+    #sde = SDE(2, init, drift_map_dir_cb, diffusion, boundaries)
     sde = SDE(2, init, drift_map_cb, diffusion, boundaries)
     sde.set_parameters(parameters)
     sdesolver = SDESolver(b'euler')
