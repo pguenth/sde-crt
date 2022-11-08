@@ -1,4 +1,4 @@
-from src.sdesolver import *
+import sdesolver as sdes
 
 import inspect
 import time
@@ -49,7 +49,7 @@ def kruells94_dkappadx_dep(x, Xsh, a, b, q):
     
 # test accessing a numpy array in a coefficient function
 def drift_map_dir(out, t, x, addr):
-    arr = carray(address_as_void_pointer(addr), 5, dtype=np.float64)
+    arr = carray(sdes.address_as_void_pointer(addr), 5, dtype=np.float64)
     v0 = kruells94_dkappadx_dep(x[0], arr[0], arr[1], arr[2], arr[4]) + kruells94_beta(x[0], arr[0], arr[1], arr[2])
     v1 = - (x[1]) * (kruells94_dbetadx(x[0], arr[0], arr[2]) / 3 + arr[3] * x[1])
 
@@ -182,10 +182,10 @@ def kruells9a1_newstyle():
             'addr' : arr.ctypes.data,#_as(ctypes.POINTER(ctypes.c_double)),
             'arr' : arr
         }
-    drift_map_cb = SDECallbackCoeff(drift_map_dir, parameter_types={'arr': types.double[:], 'addr': types.int64})
-    sde = SDE(2, init, drift_map_cb, diffusion, boundaries)
+    drift_map_cb = sdes.SDECallbackCoeff(drift_map_dir, parameter_types={'arr': types.double[:], 'addr': types.int64})
+    sde = sdes.SDE(2, init, drift_map_cb, diffusion, boundaries)
     sde.set_parameters(parameters)
-    sdesolver = SDESolver(b'euler')
+    sdesolver = sdes.SDESolver(b'euler')
 
     param = { 'sde' : sde,
               'solver' : sdesolver,

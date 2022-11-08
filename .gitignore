@@ -20,3 +20,4 @@ figures/
 log/
 cysignals_crash_logs/
 profiling/
+sdesolver/**/*.so

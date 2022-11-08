@@ -1,6 +1,6 @@
 # cython: profile=True
 # distutils: language = c++
-# distutils: sources = src/c/loop.cpp src/c/scheme.cpp
+# distutils: sources = sdesolver/loop/loop.cpp sdesolver/loop/scheme.cpp
 
 
 import numpy as np
@@ -10,7 +10,7 @@ np.import_array()
 from eigency.core cimport *
 from cython.operator cimport dereference
 
-from loop cimport integration_loop_p, boundary_call_t, rng_call_t, coeff_call_t
+from sdesolver.loop.loop cimport integration_loop_p, boundary_call_t, rng_call_t, coeff_call_t
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector
