@@ -211,11 +211,65 @@ class SDESolver:
         if not noise_term is None:
             print("WARNING: noise_term is currently ignored")
 
-    def solve(self, sde, timestep, observation_times):
+    @staticmethod
+    def solve_one(pp_t, pp_x, seed, observation_times, sde, timestep, scheme):
+        observations_contiguous = np.empty(len(observation_times) * sde.ndim)
+        # these arrays are needed because we want to give the loop pointers
+        t_array = np.empty(1, dtype=np.float64)
+        observation_count_array = np.empty(1, dtype=np.int32)
+
+        start_cpp = time.perf_counter()
+        t_array[0] = pp_t
+
+        boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
+                                 sde.drift.address, sde.diffusion.address, sde.boundary.address,
+                                 seed, timestep, 
+                                 observation_times, scheme)
+
+        end_cpp = time.perf_counter()
+        time_cpp = end_cpp - start_cpp
+
+        return t_array[0], boundary_state, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0], time_cpp
+
+    def solve(self, sde, timestep, observation_times, seeds=None):
+        from multiprocessing.pool import ThreadPool
+        pool = ThreadPool()
+
         res = SDESolution(sde)
 
         observation_times = np.array(sorted(observation_times))
-        seeds = list(range(len(sde.initial_condition)))
+
+        if seeds is None:
+            seeds = list(range(len(sde.initial_condition)))
+
+        start = time.perf_counter()
+        time_cpp = 0
+
+
+        init_copy = copy.copy(sde.initial_condition)
+        asyncresults = []
+
+        for (pp_t, pp_x), seed in zip(init_copy, seeds):
+            asr = pool.apply_async(type(self).solve_one, (pp_t, pp_x, seed, observation_times, sde, timestep, self.scheme))
+            asyncresults.append(asr)
+
+        for (_, pp_x), asr in zip(init_copy, asyncresults):
+            t, boundary_state, observations_contiguous, observation_count, time_cpp_this = asr.get()
+
+            if boundary_state != 0:
+                res._add_escaped(t, pp_x, boundary_state)
+
+            res._add_observations(observation_times, observations_contiguous, observation_count)
+            time_cpp += time_cpp_this
+
+        end = time.perf_counter()
+        logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))
+        logging.info("Runtime for propagation and transformation: {}us".format((end - start) * 1e6))
+
+        return res
+
+
+    def solve_st(self, sde, timestep, observation_times, seeds=None):
         """
         Solve a SDE with this solver using a linear single-thread approach.
 
@@ -228,6 +282,13 @@ class SDESolver:
         :param observation_times: Times at which the pseudo particle distribution will be observed, i.e. stored.
         :type observation_times: list of float
         """
+
+        res = SDESolution(sde)
+
+        observation_times = np.array(sorted(observation_times))
+
+        if seeds is None:
+            seeds = list(range(len(sde.initial_condition)))
 
         start = time.perf_counter()
         time_cpp = 0
