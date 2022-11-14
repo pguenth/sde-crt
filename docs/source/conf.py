@@ -12,6 +12,7 @@
 #
 import os
 import sys
+sys.path.insert(0, os.path.abspath('../../'))
 sys.path.insert(0, os.path.abspath('../../lib'))
 sys.path.insert(0, os.path.abspath('../../src/evaluation'))
 print(sys.path)
@@ -32,9 +33,11 @@ author = 'Patrick Günther'
 # ones.
 extensions = [
         'sphinx.ext.autodoc',
+        'sphinx.ext.autosectionlabel',
         'breathe',
-        'sphinx_rtd_theme'
+        'sphinx_rtd_theme',
 ]
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

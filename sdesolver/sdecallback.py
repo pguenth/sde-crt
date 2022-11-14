@@ -54,13 +54,13 @@ def cfunc_coeff(*args, **kwargs):
     written to. Those three are automatically typed by this decorator.
 
     The remaining arguments (referred to as 'parameters' further on) are by
-    default typed as double when calling this decorator without arguments:
+    default typed as double when calling this decorator without arguments::
 
         @cfunc_coeff
         def example(out, t, x, p0, p1, p2):
             pass
 
-    Using arguments, another type can be chosen:
+    Using arguments, another type can be chosen::
 
         @cfunc_coeff(param_types=[types.int32, types.int32. types.double])
         def example(out, t, x, an_int, another_int, a_double):
@@ -83,13 +83,13 @@ def cfunc_boundary(*args, **kwargs):
     different boundaries.
 
     The remaining arguments (referred to as 'parameters' further on) are by
-    default typed as double when calling this decorator without arguments:
+    default typed as double when calling this decorator without arguments::
 
         @cfunc_coeff
         def example(t, x, p0, p1, p2):
             pass
 
-    Using arguments, another type can be chosen:
+    Using arguments, another type can be chosen::
 
         @cfunc_coeff(param_types=[types.int32, types.int32. types.double])
         def example(t, x, an_int, another_int, a_double):
@@ -304,7 +304,7 @@ class SDECallbackBase:
         For every type not given double (float64) is assumed. To give the
         callback access to an array, the following two ways have been tested.
         First, in accordance with the numba recommendations, you can use a
-        pointer to your numpy array:
+        pointer to your numpy array::
 
             from numba import types
             import numpy as np
@@ -323,7 +323,7 @@ class SDECallbackBase:
                 'array_len' : len(array_np)
             }
 
-        A much shorter way is to use a memoryview/numba.types.Array type:
+        A much shorter way is to use a memoryview/numba.types.Array type::
 
             from numba import types
             import numpy as np
@@ -385,7 +385,7 @@ class SDECallbackBase:
         """
         OrderedDict containing the values of the parameters as key-value pairs.
         Parameters refers to the non-obligatory part of the call signature, i.e.
-        for coefficient functions with the signature
+        for coefficient functions with the signature::
 
             def func(out, t, x, param_a, param_b):
                 pass

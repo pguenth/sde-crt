@@ -1,3 +1,5 @@
+# cython: embedsignature = True
+
 from numba.extending import get_cython_function_address
 import ctypes
 

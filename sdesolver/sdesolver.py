@@ -12,17 +12,47 @@ class SDE:
     """
     This class is intended to contain the physical (i.e. non-numerical)
     aspects of an SDE. Those are:
-        - the coefficients (drift, diffusion)
-        - parameters for those
-        - boundaries
-        - initial condition (list of 2-tuples of t and [x])
-        - number of dimensions of the problem
+    - the coefficients (drift, diffusion)
+    - parameters for those
+    - boundaries
+    - initial condition (list of 2-tuples of t and [x])
+    - number of dimensions of the problem
 
     The coefficient and boundary callbacks can be set either by passing 
     callbacks to the constructor or by overriding the respective 
     functions when inheriting this class (or a combination of both).
-    Both are automatically compiled to cfuncs if not done manually.
+    Both are automatically compiled to cfuncs if not done manually. This is
+    done by the :py:class:`SDECallbackBoundary` and 
+    :py:class:`SDECallbackCoeff` classes respectively
+
+    :param ndim: Number of dimensions
+    :type ndim: int
+
+    :param initial_condition: A set of pseudo particles that should be propagated.
+    :type initial_condition: List of tuples (t, [x])
+
+    :param drift: Drift coefficient callback. If None, use the member function 
+        with the same name. `(Default: None)`
+    :type drift: function (out, t, x) -> None
+
+    :param diffusion: Diffusion coefficient callback. If None, use the member function 
+        with the same name. `(Default: None)`
+    :type diffusion: function (out, t, x) -> None
+
+    :param boundary: Escape boundary callback. If None, use the member function 
+        with the same name. `(Default: None)`
+    :type boundary: function (t, x) -> int
+
+
     """
+
+    def __init__(self, ndim, initial_condition, drift=None, diffusion=None, boundary=None):
+        self._set_callback(drift, "drift", SDECallbackCoeff)
+        self._set_callback(diffusion, "diffusion", SDECallbackCoeff)
+        self._set_callback(boundary, "boundary", SDECallbackBoundary)
+        
+        self.initial_condition = initial_condition
+        self.ndim = ndim
 
     def _set_callback(self, arg, name, decorator):
         # decide where the callback is sourced from
@@ -42,17 +72,10 @@ class SDE:
         # set the resulting callback
         setattr(self, name, cback)
 
-    def __init__(self, ndim, initial_condition=None, drift=None, diffusion=None, boundary=None):
-        self._set_callback(drift, "drift", SDECallbackCoeff)
-        self._set_callback(diffusion, "diffusion", SDECallbackCoeff)
-        self._set_callback(boundary, "boundary", SDECallbackBoundary)
-        
-        self.initial_condition = initial_condition
-        self.ndim = ndim
-
     def set_parameters(self, parameters):
         """
-        set all parameters with one dict
+        set all parameters with the same dict. Superflous parameters are
+        ignored by SDECallbackBase.
         """
         self.drift.parameters = parameters
         self.diffusion.parameters = parameters
@@ -81,13 +104,20 @@ class SDE:
         function returning an int, depending on wether
         the particle hit a boundary. Must return 0 if no boundary is
         reached and some other value (apart from -1, which is reserved)
-        if a boundary is reached.
+        if a boundary is reached. 
         """
         pass
 
 
 
 class SDESolution:
+    """
+    Numerical solution of a stochastic differential equation.
+
+    :param sde: The SDE that has been solved.
+    :type sde: :py:class:`SDE`
+
+    """
     def __init__(self, sde):
         self.sde = copy.copy(sde)
         self.observations = {}
@@ -103,6 +133,9 @@ class SDESolution:
                 self.observations[t].append(x)
 
     def __getitem__(self, s):
+        """
+        Get the observed pseudo particles at one of the times.
+        """
         self.observations[s] = np.array(self.observations[s])
         return self.observations[s]
 
@@ -117,6 +150,11 @@ class SDESolution:
          
     @property
     def escaped(self):
+        """
+        A dict of lists of all escaped particles, for every return value
+        of `sde.boundary`. The return value (boundary type) is the key of the
+        dict.
+        """
         #for k in self._escaped_lists.keys():
         #    self._escaped_arrays[k]['t'] = np.array(self._escaped[k]['t'])
         #    self._escaped_arrays[k]['x'] = np.array(self._escaped[k]['x'])
@@ -127,14 +165,28 @@ class SDESolution:
 
     @property
     def observation_times(self):
+        """
+        A list of the times at which the particle distribution has been observed
+        """
         return self.observations.keys()
 
     @property
     def boundary_states(self):
+        """
+        A list of all boundary types (return values of the `sde.boundary` call)
+        that have been returned.
+        """
         return self._escaped_lists.keys()
 
 
     def get_oldstyle_pps(self, observation_time):
+        """
+        Get a list of :py:class:`SDEPPStateOldstyle` for use with the old
+        processing code.
+
+        :param observation_time: The time at which the particles states should be returned
+        :type observation_time: float
+        """
         pstates = []
         for pp in self[observation_time]:
             pstates.append(SDEPPStateOldstyle(observation_time, np.array([pp]).T, 0))
@@ -144,6 +196,15 @@ class SDESolution:
 
 
 class SDESolver:
+    """
+    Solver of a stochastic differential equation.
+
+    :param scheme: Numerical scheme to use. See :cpp:func:`scheme_registry_lookup` for available schemes. 
+    :type scheme: string
+
+    :param noise_term: Currently not in use. Default: None
+
+    """
     def __init__(self, scheme, noise_term=None):
         self.scheme = scheme
         self.noise_term = noise_term
@@ -155,6 +216,18 @@ class SDESolver:
 
         observation_times = np.array(sorted(observation_times))
         seeds = list(range(len(sde.initial_condition)))
+        """
+        Solve a SDE with this solver using a linear single-thread approach.
+
+        :param sde: The SDE to be solved.
+        :type sde: :py:class:`SDE`
+
+        :param timestep: Integration timestep
+        :type timestep: float
+
+        :param observation_times: Times at which the pseudo particle distribution will be observed, i.e. stored.
+        :type observation_times: list of float
+        """
 
         start = time.perf_counter()
         time_cpp = 0
