@@ -298,7 +298,7 @@ class SDESolver:
 
         for asr in asyncresults:
             results_list = asr.get()
-            print(results_list[0])
+            #print(results_list[0])
             for t, boundary_state, observations_contiguous, observation_count, time_cpp_this, pp_x in results_list:
                 if boundary_state != 0:
                     res._add_escaped(t, pp_x, boundary_state)

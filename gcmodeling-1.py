@@ -8,7 +8,7 @@ from grapheval.cache import PickleNodeCache
 from grapheval.node import *
 from grapheval.graph import draw_node_chain
 
-from src.specialnodes import *
+from src.basicnodes import *
 from src.newnodes import *
 
 from scipy import integrate
