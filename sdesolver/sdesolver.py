@@ -2,6 +2,8 @@ import copy
 import time
 import logging
 
+from multiprocessing.pool import ThreadPool
+
 import numpy as np
 
 from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary
@@ -58,7 +60,7 @@ class SDE:
         # decide where the callback is sourced from
         if not arg is None:
             cback = arg
-        elif type(getattr(self, name)) is getattr(SDE, name):
+        elif getattr(type(self), name) is getattr(SDE, name):
             raise NotImplementedError(
                     "Either {} must be given on initialisation or it must be overriden by inheritance".format(name))
         else:
@@ -108,6 +110,16 @@ class SDE:
         """
         pass
 
+    def __eq__(self, v):
+        ic = np.array_equal(v.initial_condition, self.initial_condition)
+        return v.ndim == self.ndim and ic and self.drift == v.drift and self.diffusion == v.diffusion and self.boundary is v.boundary
+
+    #def __hash__(self):
+    #    return hash((self.ndim, self.initial_condition, self.drift, self.diffusion, self.boundary))
+
+#    def __reduce__(self):
+#        return (type(self), (self.ndim, self.initial_condition))
+#
 
 
 class SDESolution:
@@ -229,10 +241,36 @@ class SDESolver:
         end_cpp = time.perf_counter()
         time_cpp = end_cpp - start_cpp
 
-        return t_array[0], boundary_state, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0], time_cpp
+        return t_array[0], boundary_state, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0], time_cpp, pp_x
 
-    def solve(self, sde, timestep, observation_times, seeds=None):
-        from multiprocessing.pool import ThreadPool
+    def solve_slice_single(self, sde, timestep, observation_times, seeds_slice, init_copy_slice):
+        single_returns = []
+
+        for (pp_t, pp_x), seed in zip(init_copy_slice, seeds_slice):
+            returntuple = type(self).solve_one(pp_t, pp_x, seed, observation_times, sde, timestep, self.scheme)
+            single_returns.append(returntuple)
+
+        return single_returns
+
+    def solve(self, sde, timestep, observation_times, seeds=None, nthreads=4):
+        """
+        Solve a SDE with this solver using multiple threads.
+
+        :param sde: The SDE to be solved.
+        :type sde: :py:class:`SDE`
+
+        :param timestep: Integration timestep
+        :type timestep: float
+
+        :param observation_times: Times at which the pseudo particle distribution will be observed, i.e. stored.
+        :type observation_times: list of float
+
+        :param seeds: Seeds for every sde solution. If None, use 0, 1, 2, ...
+        :type seeds: None or list of int with length of observation_times
+
+        :param nthreads: Number of threads. If -1, use one thread per solution.
+        :type nthreads: int
+        """
         pool = ThreadPool()
 
         res = SDESolution(sde)
@@ -249,18 +287,24 @@ class SDESolver:
         init_copy = copy.copy(sde.initial_condition)
         asyncresults = []
 
-        for (pp_t, pp_x), seed in zip(init_copy, seeds):
-            asr = pool.apply_async(type(self).solve_one, (pp_t, pp_x, seed, observation_times, sde, timestep, self.scheme))
-            asyncresults.append(asr)
+        if nthreads == -1:
+            for (pp_t, pp_x), seed in zip(init_copy, seeds):
+                asr = pool.apply_async(type(self).solve_one, (pp_t, pp_x, seed, observation_times, sde, timestep, self.scheme))
+                asyncresults.append([asr])
+        else:
+            for mod in range(nthreads):
+                asr = pool.apply_async(self.solve_slice_single, (sde, timestep, observation_times, seeds[mod::nthreads], init_copy[mod::nthreads]))
+                asyncresults.append(asr)
 
-        for (_, pp_x), asr in zip(init_copy, asyncresults):
-            t, boundary_state, observations_contiguous, observation_count, time_cpp_this = asr.get()
+        for asr in asyncresults:
+            results_list = asr.get()
+            print(results_list[0])
+            for t, boundary_state, observations_contiguous, observation_count, time_cpp_this, pp_x in results_list:
+                if boundary_state != 0:
+                    res._add_escaped(t, pp_x, boundary_state)
 
-            if boundary_state != 0:
-                res._add_escaped(t, pp_x, boundary_state)
-
-            res._add_observations(observation_times, observations_contiguous, observation_count)
-            time_cpp += time_cpp_this
+                res._add_observations(observation_times, observations_contiguous, observation_count)
+                time_cpp += time_cpp_this
 
         end = time.perf_counter()
         logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))

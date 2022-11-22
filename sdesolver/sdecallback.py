@@ -253,6 +253,8 @@ class SDECallbackBase:
         The numba-C-compiled callback, with the parameters fixed if they have
         been set at some point
         """
+        if self._cfunc is None:
+            self._recompile_param()
         return self._cfunc
 
     @property
@@ -260,7 +262,9 @@ class SDECallbackBase:
         """
         The numba-C-compiled callback, always without fixed parameters
         """
-        return self._cfunc_noparameters
+        if self._cfunc_noparam is None:
+            self._recompile_base()
+        return self._cfunc_noparam
 
     @property
     def address(self):
@@ -416,6 +420,35 @@ class SDECallbackBase:
         v_cast = self.parameter_types[k](v)
         self._parameters_dict[k] = v_cast
         self._recompile_param()
+
+    def __getstate__(self):
+        return (self.pyfunc, self._parameter_types, self._parameters_dict, self._compile_kwargs)
+
+    def __setstate__(self, state):
+        pyfunc, parameter_types, parameters_dict, compile_kwargs = state
+        self._pyfunc = pyfunc
+        self._cfunc = None
+        self._cfunc_noparam = None
+        self._parameter_types = parameter_types
+        self._parameters_dict = parameters_dict
+        self._compile_kwargs = compile_kwargs
+
+    def __eq__(self, other):
+        if self._pyfunc != other._pyfunc:
+            return False
+        if self._parameter_types != other._parameter_types:
+            return False
+        if self._parameters_dict != other._parameters_dict:
+            return False
+        if self._compile_kwargs != other._compile_kwargs:
+            return False
+
+    def __hash__(self):
+        return hash(self.__getstate__())
+    #def _reconstruct(self, pyfunc, parameter_types=None, **kwargs):
+
+    #def __reduce__(self):
+    #    return (type(self), 
 
 
 class SDECallbackCoeff(SDECallbackBase):

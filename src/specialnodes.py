@@ -123,6 +123,7 @@ class PointNode(EvalNode):
         return a
 
 
+
 class ValuesNode(EvalNode):
     """
     Reqiured parents:
@@ -261,7 +262,11 @@ class HistogramNode(EvalNode):
         else:
             weights = np.ones(len(rev))
 
-        rev_dim = np.array(rev).T[0]
+        if len(rev.shape) > 1:
+            rev_dim = np.array(rev).T[0]
+        else:
+            rev_dim = rev
+
         if kwargs['bin_width'] is None:
             bin_count = type(self)._get_bin_count(kwargs['bin_count'], kwargs['average_bin_size'], len(rev))
             if kwargs['log_bins']:
@@ -321,7 +326,7 @@ class HistogramNode(EvalNode):
 
         fmt_fields |= add_fields
 
-        label = kwargs['label'].format(**(fmt_fields))
+        label = "GC test fixme"#kwargs['label'].format(**(fmt_fields))
 
         #print(common['label_fmt_fields'])
         if kwargs['style'] == 'step':
