@@ -111,16 +111,30 @@ class SDE:
         pass
 
     def __eq__(self, v):
-        ic = np.array_equal(v.initial_condition, self.initial_condition)
-        return v.ndim == self.ndim and ic and self.drift == v.drift and self.diffusion == v.diffusion and self.boundary is v.boundary
+        if len(v.initial_condition) != len(self.initial_condition):
+            print("lengths not equal")
+            return False
 
-    #def __hash__(self):
-    #    return hash((self.ndim, self.initial_condition, self.drift, self.diffusion, self.boundary))
+        for (d0, a0), (d1, a1) in zip(v.initial_condition, self.initial_condition):
+            if d0 != d1:
+                return False
+            if not np.array_equal(a0, a1):
+                return False
 
-#    def __reduce__(self):
-#        return (type(self), (self.ndim, self.initial_condition))
-#
+        if v.ndim != self.ndim:
+            print("ndim ineq")
+            return False
 
+        if self.drift != v.drift:
+            print("drift ineq")
+            return False
+        if self.diffusion != v.diffusion:
+            print("diffusion ineq")
+            return False
+        if self.boundary != v.boundary:
+            print("boundary ineq")
+            return False
+        return True
 
 class SDESolution:
     """
@@ -284,7 +298,7 @@ class SDESolver:
         time_cpp = 0
 
 
-        init_copy = copy.copy(sde.initial_condition)
+        init_copy = copy.deepcopy(sde.initial_condition)
         asyncresults = []
 
         if nthreads == -1:
@@ -342,7 +356,7 @@ class SDESolver:
         t_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
 
-        init_copy = copy.copy(sde.initial_condition)
+        init_copy = copy.deepcopy(sde.initial_condition)
 
         for (pp_t, pp_x), seed in zip(init_copy, seeds):
             start_cpp = time.perf_counter()

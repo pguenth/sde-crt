@@ -434,14 +434,24 @@ class SDECallbackBase:
         self._compile_kwargs = compile_kwargs
 
     def __eq__(self, other):
-        if self._pyfunc != other._pyfunc:
-            return False
         if self._parameter_types != other._parameter_types:
+            print("pt")
             return False
         if self._parameters_dict != other._parameters_dict:
+            print("pd")
             return False
         if self._compile_kwargs != other._compile_kwargs:
+            print("kw")
             return False
+        if self._pyfunc != other._pyfunc:
+            import inspect
+            #print(inspect.getsource(self._pyfunc))
+            #print(inspect.getsource(other._pyfunc))
+            if inspect.getsource(self._pyfunc) == inspect.getsource(other._pyfunc):
+                return True
+            else:
+                return False
+        return True
 
     def __hash__(self):
         return hash(self.__getstate__())
