@@ -138,11 +138,11 @@ figdir = "figures"
 
 name = "gcmodeling-1"
 
-pdf_len = 1000
+pdf_len = 2000
 pdf = pullN(pdf_norm, x0, pdf_len, args)
 
 T = 20.0
-t_inj = 0.1
+t_inj = 0.02
 dt = 0.001
 confine_x=100
 n_particle = int(T / t_inj) * len(pdf)
@@ -159,11 +159,6 @@ parameters = {
 
 
 sde = sdes.SDE(2, init, drift, diffusion, boundaries)
-import pickle
-print(type(sde.drift))
-pickle.dumps(sde.drift)
-sde_pick = pickle.loads(pickle.dumps(sde))
-#print(sde_pick.ndim, sde_pick.initial_condition, sde_pick.drift)
 
 sde.set_parameters(parameters)
 

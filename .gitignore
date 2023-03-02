@@ -21,3 +21,5 @@ log/
 cysignals_crash_logs/
 profiling/
 sdesolver/**/*.so
+cache/
+lib_old/
