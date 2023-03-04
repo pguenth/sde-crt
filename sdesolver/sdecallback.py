@@ -157,14 +157,17 @@ class SDECallbackBase:
 
         pfunc = self._cfunc_noparam
 
-        if len(self._types_base) == 3:
+        if len(self._types_base) == 4:
+            self._cfunc = cfunc(self._type_return(*self._types_base))(
+                                   lambda a, b, c, d : pfunc(a, b, c, d, *param_tuple))
+        elif len(self._types_base) == 3:
             self._cfunc = cfunc(self._type_return(*self._types_base))(
                                    lambda out, t, x : pfunc(out, t, x, *param_tuple))
         elif len(self._types_base) == 2:
             self._cfunc = cfunc(self._type_return(*self._types_base))(
                                    lambda t, x : pfunc(t, x, *param_tuple))
         else:
-            raise ValueError("types_base must be either 2 or 3 long")
+            raise ValueError("types_base must be either 2, 3 or 4 long")
 
     ###
     ### Import parameters from different data types
@@ -434,6 +437,9 @@ class SDECallbackBase:
         self._compile_kwargs = compile_kwargs
 
     def __eq__(self, other):
+        if not isinstance(other, SDECallbackBase):
+            print("type mismatch")
+            return False
         if self._parameter_types != other._parameter_types:
             print("pt")
             return False
@@ -468,3 +474,7 @@ class SDECallbackCoeff(SDECallbackBase):
 class SDECallbackBoundary(SDECallbackBase):
     _types_base = (types.double, types.CPointer(types.double))
     _type_return = types.int32
+
+class SDECallbackSplit(SDECallbackBase):
+    _types_base = (types.double, types.CPointer(types.double), types.double, types.CPointer(types.double))
+    _type_return = types.boolean

@@ -6,7 +6,7 @@ from multiprocessing.pool import ThreadPool
 
 import numpy as np
 
-from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary
+from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
 from sdesolver.loop.pyloop import py_integration_loop
 from sdesolver.util.datastructures import SDEPPStateOldstyle
 
@@ -25,7 +25,9 @@ class SDE:
     functions when inheriting this class (or a combination of both).
     Both are automatically compiled to cfuncs if not done manually. This is
     done by the :py:class:`SDECallbackBoundary` and 
-    :py:class:`SDECallbackCoeff` classes respectively
+    :py:class:`SDECallbackCoeff` classes respectively. FIXME: Is this tested?
+    It will probably not work because of the self parameter in the inherited
+    functions.
 
     :param ndim: Number of dimensions
     :type ndim: int
@@ -48,10 +50,11 @@ class SDE:
 
     """
 
-    def __init__(self, ndim, initial_condition, drift=None, diffusion=None, boundary=None):
+    def __init__(self, ndim, initial_condition, drift=None, diffusion=None, boundary=None, split=None):
         self._set_callback(drift, "drift", SDECallbackCoeff)
         self._set_callback(diffusion, "diffusion", SDECallbackCoeff)
         self._set_callback(boundary, "boundary", SDECallbackBoundary)
+        self._set_callback(split, "split", SDECallbackSplit)
         
         self.initial_condition = initial_condition
         self.ndim = ndim
@@ -82,6 +85,7 @@ class SDE:
         self.drift.parameters = parameters
         self.diffusion.parameters = parameters
         self.boundary.parameters = parameters
+        self.split.parameters = parameters
     
     def drift(self, out, t, x):
         """
@@ -110,6 +114,15 @@ class SDE:
         """
         pass
 
+    def split(self, t, x, last_t, last_x):
+        """
+        function returning a bool, depending on wether
+        the particle should be splitted at the current point. This callback
+        is also passed the time and position of the last splitting event
+        for this particle.
+        """
+        pass
+
     def __eq__(self, v):
         if len(v.initial_condition) != len(self.initial_condition):
             print("lengths not equal")
@@ -134,6 +147,10 @@ class SDE:
         if self.boundary != v.boundary:
             print("boundary ineq")
             return False
+        if self.split != v.split:
+            print("split ineq")
+            return False
+
         return True
 
 class SDESolution:
@@ -244,16 +261,19 @@ class SDESolver:
         t_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
 
+        print("SDESolver particle start")
         start_cpp = time.perf_counter()
         t_array[0] = pp_t
+        split_times = []
+        split_points = []
 
         boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
-                                 sde.drift.address, sde.diffusion.address, sde.boundary.address,
-                                 seed, timestep, 
-                                 observation_times, scheme)
+                                 sde.drift.address, sde.diffusion.address, sde.boundary.address, sde.split.address,
+                                 seed, timestep, observation_times, split_times, split_points, scheme)
 
         end_cpp = time.perf_counter()
         time_cpp = end_cpp - start_cpp
+        print("SDESolver", list(zip(split_times, np.array(split_points).reshape((-1, 2)))))
 
         return t_array[0], boundary_state, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0], time_cpp, pp_x
 
