@@ -55,7 +55,8 @@ int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t,
         }
 
         // splitting
-        if (split(*t, x.data(), t_last_split, x_last_split.data())){
+        if (split(*t, x.data(), t_last_split, x_last_split.data()) && observe_it != t_observe.end()){
+            //std::cout << "test\n";
             x_last_split = x;
             t_last_split = *t;
             split_points.push_back(x);
@@ -63,13 +64,13 @@ int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t,
         }
     }
 
-    for (auto& vec : split_points){
-        std::cout << vec << "\n";
-    }
+    //for (auto& vec : split_points){
+    //    std::cout << vec << "\n";
+    //}
 
-    for (auto& t : split_times){
-        std::cout << t << "\n";
-    }
+    //for (auto& t : split_times){
+    //    std::cout << t << "\n";
+    //}
 
     return boundary_state;
 }

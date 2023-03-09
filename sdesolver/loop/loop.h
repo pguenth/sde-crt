@@ -16,6 +16,8 @@ typedef void (*rng_call_t)(Eigen::VectorXd& x_out, int ndim); // or similar
  * Callback type for boundary checks. The time and position of the 
  * solution is passed. Is expected to return 0 if no boundary is reached and
  * some other value if a boundary is reached. -1 is reserved as error state
+ * (at the moment this happens if no propagation happened (no observation times
+ * given)
  */
 typedef int (*boundary_call_t)(double t, const double *x);
                                                               //
@@ -54,6 +56,12 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
  * @param observations Container to which the position (x) is written to when
  *      an observation time is reached. Those are written in the order of
  *      t_observe, which in itself is assumed to be sorted ascending.
+ *      Observations for times smaller than the start time t are filled with
+ *      the start position.
+ * @param observation_count Number of observed points. This can be smaller than
+ *      t_observe_count because of breakpoints. Note that this is the length of 
+ *      items in observations divided by the length of x (=number of
+ *      dimensions). This is a return value.
  * @param t The start time of the integration. The final time will be written
  *      to this pointer. This is relevant if a boundary is reached.
  * @param x The start position of the integration. The final position will be

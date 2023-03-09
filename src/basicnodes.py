@@ -89,7 +89,7 @@ class HistogramNode(EvalNode):
             'manual_normalization_factor' : 1,
             'transform' : None,
             'log_bins' : False,
-            'label' : 'Tmax={Tmax}',
+            'label' : '',
             'style' : 'step',
             'show_errors' : True,
             'plot_kwargs' : {},
@@ -112,10 +112,10 @@ class HistogramNode(EvalNode):
         #return {'color' : color}
 
     def do(self, parent_data, common, **kwargs):
-        rev = parent_data['values']
+        rev = np.array(parent_data['values'])
 
         if 'weights' in parent_data:
-            weights = parent_data['weights']
+            weights = np.array(parent_data['weights'])
         else:
             weights = np.ones(len(rev))
 
@@ -139,6 +139,8 @@ class HistogramNode(EvalNode):
 
         try:
             histogram, edges = np.histogram(rev_dim, bins=bins, weights=weights, density=False)
+            # for error estimation, use squared weights
+            histogram_squareweights, _ = np.histogram(rev_dim, bins=bins, weights=weights**2, density=False)
         except ValueError as e:
             print("verr", len(weights), len(rev_dim), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), rev_dim)
             raise e
@@ -155,7 +157,7 @@ class HistogramNode(EvalNode):
         else:
             norm = 1
 
-        errors = np.sqrt(histogram) * norm * kwargs['manual_normalization_factor']
+        errors = np.sqrt(histogram_squareweights) * norm * kwargs['manual_normalization_factor']
         histogram = histogram * norm * kwargs['manual_normalization_factor']
         #print("hist2", errors/histogram)
 
@@ -169,24 +171,10 @@ class HistogramNode(EvalNode):
     def plot(self, v, ax, common, **kwargs):
         param, histogram, errors, edges = v
 
-        #if ValuesNode in common['_kwargs_by_type']:
-        if False:
-            add_fields = common['_kwargs_by_type'][ValuesNode]
-        else:
-            add_fields = {}
+        fmt_fields = self.tree_kwargs()
 
-        fmt_fields = {}
+        label = kwargs['label'].format(**(fmt_fields))
 
-        if 'batch_param' in common:
-            fmt_fields |= common['batch_param']
-        if 'label_fmt_fields' in common:
-            fmt_fields |= common['label_fmt_fields']
-
-        fmt_fields |= add_fields
-
-        label = "GC test fixme"#kwargs['label'].format(**(fmt_fields))
-
-        #print(common['label_fmt_fields'])
         if kwargs['style'] == 'step':
             if kwargs['show_errors']:
                 hupper = histogram + errors

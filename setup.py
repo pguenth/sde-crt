@@ -5,7 +5,7 @@ from Cython.Build import cythonize
 import eigency
 import numpy
 
-kwargs_ext = { 'include_dirs' : eigency.get_includes() + [numpy.get_include(), 'sdesolver/loop/'],
+kwargs_ext = { 'include_dirs' : eigency.get_includes() + [numpy.get_include(), 'sdesolver/loop/', '/usr/include/eigen3'],
                #'library_dirs' : ["lib/"],
                #'libraries' : ["batch"], # dynamic linking at link time
                #'extra_objects' : ["lib/libbatch.a"], #static linking

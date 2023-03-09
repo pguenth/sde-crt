@@ -33,14 +33,25 @@ class SDEValuesNode(EvalNode):
     """
 
     def do(self, parent_data, common, index, confinements=[], confine_range=[], **kwargs):
-        points = parent_data['points'] 
+        points = parent_data['x'] 
+        weights = parent_data['weights']
+
         for conf_idx, conf_cond in confinements:
             points = [p for p in points if conf_cond(p[conf_idx])]
 
         for conf_idx, conf_min, conf_max in confine_range:
             points = [p for p in points if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
 
-        v_array = np.array(points).T[index]
+        ret = {'values' : np.array(points).T[index]}
+
+        if not weights is None:
+            for conf_idx, conf_cond in confinements:
+                weights = [w for p, w in zip(points, weights) if conf_cond(p[conf_idx])]
+
+            for conf_idx, conf_min, conf_max in confine_range:
+                weights = [w for p, w in zip(points, weights) if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
+
+            ret['weights'] = weights
 
         #if index == 1:
         #    # numerical error detection
@@ -51,6 +62,6 @@ class SDEValuesNode(EvalNode):
         #    if b > 0:
         #        print("negative momentum detected in {}/{} particles at node {}".format(b, len(v_array), self.name))
 
-        return v_array
+        return ret
 
 #SDEValues('val', PassiveNode('p', points='Test'))
