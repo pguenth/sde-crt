@@ -68,18 +68,11 @@ def diffusion(out, t, x, Xsh, a, b, q):
     out_a[1, 1] = 0
 
 def boundaries(t, x):
-    ###
-    return 0
-    ###
-
     x_a = carray(x, (2,))
     if np.abs(x_a[0]) > 0.005:
         return 1
     else:
         return 0
-
-def nosplit(t, x, last_t, last_x):
-    return False
 
 def split(t, x, last_t, last_x):
     if x[1] / last_x[1] >= 1.8:#1.41:

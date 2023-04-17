@@ -69,7 +69,7 @@ class SDE:
         # decide where the callback is sourced from
         if not arg is None:
             cback = arg
-        elif getattr(type(self), name) is getattr(SDE, name):
+        elif name not in ['split', 'boundary'] and getattr(type(self), name) is getattr(SDE, name):
             raise NotImplementedError(
                     "Either {} must be given on initialisation or it must be overriden by inheritance".format(name))
         else:
@@ -118,7 +118,7 @@ class SDE:
         reached and some other value (apart from -1, which is reserved)
         if a boundary is reached. 
         """
-        pass
+        return 0
 
     def split(self, t, x, last_t, last_x):
         """
@@ -127,7 +127,7 @@ class SDE:
         is also passed the time and position of the last splitting event
         for this particle.
         """
-        pass
+        return False
 
     def __eq__(self, v):
         if len(v.initial_condition) != len(self.initial_condition):
