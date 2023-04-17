@@ -137,8 +137,10 @@ class HistogramNode(EvalNode):
             else:
                 bins = np.arange(min(rev_dim), max(rev_dim), kwargs['bin_width'])
 
+        print("weights", self.name, sum(weights))
         try:
             histogram, edges = np.histogram(rev_dim, bins=bins, weights=weights, density=False)
+            histogram_unweighted, _ = np.histogram(rev_dim, bins=bins, density=False)
             # for error estimation, use squared weights
             histogram_squareweights, _ = np.histogram(rev_dim, bins=bins, weights=weights**2, density=False)
         except ValueError as e:
@@ -157,9 +159,8 @@ class HistogramNode(EvalNode):
         else:
             norm = 1
 
-        errors = np.sqrt(histogram_squareweights) * norm * kwargs['manual_normalization_factor']
+        errors = histogram * np.sqrt(histogram_unweighted) / histogram_unweighted * norm * kwargs['manual_normalization_factor']
         histogram = histogram * norm * kwargs['manual_normalization_factor']
-        #print("hist2", errors/histogram)
 
         param = edges[:-1] + np.diff(edges) / 2
 
@@ -225,44 +226,58 @@ class Histogram2DNode(HistogramNode):
 
     def _prepare_onedim(self, rev, dim, **kwargs):
         bin_count = type(self)._get_bin_count(kwargs['bin_count'][dim], kwargs['average_bin_size'], len(rev))
-        rev_dim = np.array(rev).T[0]
+        #rev_dim = np.array(rev).T[0]
 
         if kwargs['log_bins'][dim]:
-            bins = np.logspace(np.log10(min(rev_dim)), np.log10(max(rev_dim)), bin_count + 1)
+            bins = np.logspace(np.log10(min(rev)), np.log10(max(rev)), bin_count + 1)
         else:
-            bins = np.linspace(min(rev_dim), max(rev_dim), bin_count + 1)
+            bins = np.linspace(min(rev), max(rev), bin_count + 1)
 
-        return rev_dim, bins
+        return rev, bins
 
-    def filter_values(self, revx, revy, lims):
+    def filter_values(self, revx, revy, weights, lims):
         xf = []
         yf = []
-        for x_, y_ in zip(revx, revy):
+        ws = []
+        for x_, y_, w_ in zip(revx, revy, weights):
             if lims[0][0] <= x_ and x_ <= lims[0][1] and lims[1][0] <= y_ and y_ <= lims[1][1]:
                 xf.append(x_)
                 yf.append(y_)
+                ws.append(w_)
 
-        return np.array(xf), np.array(yf)
+        return np.array(xf), np.array(yf), np.array(ws)
 
     def do(self, parent_data, common, **kwargs):
-        vx = parent_data['valuesx']
-        vy = parent_data['valuesy']
-        if not len(vx) == len(vy):
-            raise ValueError("Histogram2D parents need same dimension")
+        if 'valuesx' in parent_data and 'valuesy' in parent_data:
+            vx = parent_data['valuesx']
+            vy = parent_data['valuesy']
+            if not len(vx) == len(vy):
+                raise ValueError("Histogram2D parents need same dimension")
+        elif 'values' in parent_data:
+            # assuming [(x0, x1, ...), (x0, x1, ...),...] here
+            vx, vy = parent_data['values'].T
+        else:
+            raise ValueError("Histogram2D needs either valuesx and valuesy or values as parents")
 
-        revx, revy = self.filter_values(vx, vy, kwargs['limits'])
+        if 'weights' in parent_data:
+            ws = parent_data['weights']
+        else:
+            ws = np.ones(len(vx))
+
+        revx, revy, weights = self.filter_values(vx, vy, ws, kwargs['limits'])
 
         revxd, bins_x = self._prepare_onedim(revx, 0, **kwargs)
         revyd, bins_y = self._prepare_onedim(revy, 1, **kwargs)
 
         try:
-            histogram, xedges, yedges = np.histogram2d(revxd, revyd, bins=[bins_x, bins_y], density=False)
+            histogram, xedges, yedges = np.histogram2d(revxd, revyd, bins=[bins_x, bins_y], weights=weights, density=False)
         except ValueError as e:
             print("verr", len(revxd), revxd)
             raise e
 
-        histogram = histogram.T # neccessery somehow, see docs of histogram2d
+        histogram = histogram.T # necessary somehow, see docs of histogram2d
         
+        #! ignoring weights for now
         if kwargs['normalize'] == 'density':
             dbx = np.array(np.diff(xedges), float)
             dby = np.array(np.diff(yedges), float)
@@ -296,12 +311,13 @@ class Histogram2DNode(HistogramNode):
     def plot(self, v, ax, common, **kwargs):
         paramx, paramy, histogram, errors, xedges, yedges = v
 
-        if ValuesNode in common['_kwargs_by_type']:
+        #! ignore atm
+        if False and ValuesNode in common['_kwargs_by_type']:
             add_fields = common['_kwargs_by_type'][ValuesNode]
         else:
             add_fields = {}
 
-        fmt_fields = common['batch_param'] | common['label_fmt_fields'] | add_fields
+        fmt_fields = self.tree_kwargs()
         label = kwargs['label'].format(**(fmt_fields))
 
         #print(common['label_fmt_fields'])
@@ -362,7 +378,7 @@ class PowerlawNode(EvalNode):
             x = np.log(x)
 
         if not errors is None:
-            errors = errors / y # dln(x) = dx / x
+            errors = np.abs(errors / y) # dln(x) = dx / x
         y = np.log(y)
         
         if not errors is None and kwargs['error_type'] == 'kiessling':

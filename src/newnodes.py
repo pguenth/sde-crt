@@ -13,9 +13,9 @@ class PassiveNode(EvalNode):
 
 
 class SDESolverNode(EvalNode):
-    def do(self, parent_data, common, sde, scheme, timestep, observation_times, nthreads=4, **kwargs):
+    def do(self, parent_data, common, sde, scheme, timestep, observation_times, nthreads=4, supervise=True, **kwargs):
         solver = SDESolver(scheme)
-        return solver.solve(sde, timestep, observation_times, nthreads=nthreads)
+        return solver.solve(sde, timestep, observation_times, nthreads=nthreads, supervise=supervise)
 
 class SDEEscapeFluxNode(EvalNode):
     """
@@ -34,7 +34,6 @@ class SDEValuesNode(EvalNode):
 
     def do(self, parent_data, common, index, confinements=[], confine_range=[], **kwargs):
         points = parent_data['x'] 
-        weights = parent_data['weights']
 
         for conf_idx, conf_cond in confinements:
             points = [p for p in points if conf_cond(p[conf_idx])]
@@ -42,16 +41,20 @@ class SDEValuesNode(EvalNode):
         for conf_idx, conf_min, conf_max in confine_range:
             points = [p for p in points if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
 
-        ret = {'values' : np.array(points).T[index]}
+        if len(points) == 0:
+            ret = {'values': np.array([])}
+        else:
+            ret = {'values' : np.array(points).T[index]}
 
-        if not weights is None:
+        if 'weights' in parent_data:
+            weights = parent_data['weights']
             for conf_idx, conf_cond in confinements:
                 weights = [w for p, w in zip(points, weights) if conf_cond(p[conf_idx])]
 
             for conf_idx, conf_min, conf_max in confine_range:
                 weights = [w for p, w in zip(points, weights) if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
 
-            ret['weights'] = weights
+            ret['weights'] = np.array(weights)
 
         #if index == 1:
         #    # numerical error detection
@@ -62,6 +65,7 @@ class SDEValuesNode(EvalNode):
         #    if b > 0:
         #        print("negative momentum detected in {}/{} particles at node {}".format(b, len(v_array), self.name))
 
+        print(ret)
         return ret
 
 #SDEValues('val', PassiveNode('p', points='Test'))

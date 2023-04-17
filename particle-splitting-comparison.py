@@ -24,12 +24,28 @@ import logging
 import ctypes
 import warnings
 
-#warnings.simplefilter("error", np.VisibleDeprecationWarning)
-
-
 logging.basicConfig(level=logging.INFO, #filename='log/tests_log_{}.log'.format(sys.argv[1]),
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+def param_from_numerical(dx_adv, delta, sigma, beta_s, r, n_timesteps):
+    """
+    from outdated chains.py
+    """
+    dx_diff = dx_adv / delta
+
+    dt = (dx_adv - dx_diff / 4) / beta_s
+    q = dt / (dx_adv / dx_diff - 0.25)**2
+    assert q > 0
+    assert dt > 0
+    Xsh = dx_adv * (1 - sigma) + sigma * dx_diff
+    Tmax = n_timesteps * dt
+
+    a = beta_s / 2 * (1 + 1 / r)
+    b = beta_s / 2 * (r - 1) / r
+    
+    param_sim = {'beta_s' : beta_s, 'q' : q, 'Xsh' : Xsh, 'dt' : dt, 'Tmax' : Tmax, 'r' : r, 'a' : a, 'b' : b}
+    param_num = {'dx_adv' : dx_adv, 'dx_diff' : dx_diff, 'delta' : delta, 'sigma' : sigma}
+    return param_sim, param_num
 
 @njit(f8(f8, f8, f8, f8))
 def kruells94_beta(x, Xsh, a, b):
@@ -84,42 +100,38 @@ def split(t, x, last_t, last_x):
 cachedir = "cache"
 figdir = "figures"
 
-name = "9a1-nochains"
+name = "splitting-comparison"
 
-
-#T = 200.0
+T = 200.0
 #t_inj = 0.05
-T = 40.0
-t_inj = 0.005
+#T = 24.5
+t_inj = 0.05
 x0 = np.array([0.0, 1.0])
 dt = 0.001
-confine_x=100
-n_particle = int(T / t_inj) 
+confine_x=1#0.05
+n_particle = int(T / t_inj)
 
-#init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
-init = [(0.0, np.copy(x0)) for i in range(n_particle)]
+init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
 
+parameters_raw, _ = param_from_numerical(dx_adv=0.00053, delta=0.323, sigma=0.95, beta_s=0.06, r=4, n_timesteps=20000)
 parameters = {
-        'Xsh' : 0.001215, 
-        'a' : 0.0375,
-        'b' : 0.0225,
-        'k_syn' : 0,
-        'q' : 1,
-    }
+              'k_syn' : 0,#.0001,
+              'x0' : 0,
+              'y0' : 1,
+            } | parameters_raw 
+dt = parameters_raw['dt']
 
-sde = sdes.SDE(2, init, drift, diffusion, boundaries, split)
-sde_nosplit = sdes.SDE(2, init, drift, diffusion, boundaries, nosplit)
+sde = sdes.SDE(2, init, drift, diffusion, split=split)
 
 sde.set_parameters(parameters)
-sde_nosplit.set_parameters(parameters)
 
 cache = PickleNodeCache(cachedir, name)
 
-obs_at = [T/8, T/4, T / 2, T]
-solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=4, cache=cache, splitted=True)
-solvernode_nosplit = SDESolverNode('solver_nosplit', sde=sde_nosplit, scheme=b'euler', timestep=dt, observation_times=obs_at, cache=cache, splitted=False)
+obs_at = [T/32, T/16, T / 4, T]
+#obs_at = [22.0, 22.5, 23.0, T]
+solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=4, cache=cache, splitted=True, ignore_cache=True, supervise=True)
 
-histo_opts = {'bin_count' : 30, 'plot' : True, 'cache' : cache, 'ignore_cache' : False, 'label': 'T={T}, splitted: {splitted}'}
+histo_opts = {'bin_count' : 60, 'cache' : cache, 'ignore_cache' : False, 'label': 'T={T}, splitted: {splitted}', 'plot': True}
 
 valuesx = {}
 valuesp = {}
@@ -133,47 +145,42 @@ for T_ in obs_at:
     histogramx[T_] = HistogramNode(f'histox_{T_}', {'values' : valuesx[T_]['values'], 'weights' : valuesx[T_]['weights']}, log_bins=False, normalize='width', **histo_opts)
     histogramp[T_] = HistogramNode(f'histop_{T_}', {'values' : valuesp[T_]['values'], 'weights' : valuesp[T_]['weights']}, log_bins=True, normalize='density', **histo_opts)
 
+maxpl = PowerlawNode('pl', {'dataset' : histogramp[T]}, plot=True)
+groupp = NodeGroup('gp', parents=histogramp)
+groupx = NodeGroup('gx', parents=histogramx)
 
-valuesx_nosplits = {}
-valuesp_nosplits = {}
-histogramx_nosplits = {}
-histogramp_nosplits = {}
-for T_ in obs_at:
-    valuesx_nosplits[T_] = SDEValuesNode(f'valuesx_nosplit_{T_}', {'x' : solvernode_nosplit[T_]['x'], 'weights': solvernode_nosplit[T_]['weights']}, index=0, T=T_, cache=cache)
-    valuesp_nosplits[T_] = SDEValuesNode(f'valuesp_nosplit_{T_}', {'x' : solvernode_nosplit[T_]['x'], 'weights': solvernode_nosplit[T_]['weights']}, index=1, T=T_, cache=cache,
-        confine_range=[(0, -confine_x, confine_x)],
-    )
-    histogramx_nosplits[T_] = HistogramNode(f'histox_nosplit_{T_}', {'values' : valuesx_nosplits[T_]['values'], 'weights' : valuesx_nosplits[T_]['weights']}, log_bins=False, normalize='width', **histo_opts)
-    histogramp_nosplits[T_] = HistogramNode(f'histop_nosplit_{T_}', {'values' : valuesp_nosplits[T_]['values'], 'weights' : valuesp_nosplits[T_]['weights']}, log_bins=True, normalize='density', **histo_opts)
-
-
-    #histosetx, histosetp, powerlaw = chains.get_chain_times_maxpl(NumpyBatch, cache, param, times, confine_x=0.05, bin_count=30)
-    #histosetx.map_tree(lambda b : b.set(nthreads=8), "batch")
+# duplicate for the unsplitted variant
+sde_nosplit = sdes.SDE(2, init, drift, diffusion)
+sde_nosplit.set_parameters(parameters)
+groupp_nosplit = groupp.copy('nosplit', last_kwargs=dict(sde=sde_nosplit, splitted=False))
+groupx_nosplit = groupx.copy('nosplit', last_kwargs=dict(sde=sde_nosplit, splitted=False))
+maxpl_nosplit = maxpl.copy('nosplit', last_kwargs=dict(sde=sde_nosplit, splitted=False))
 
 import proplot as pplt
-format4 = NodeFigureFormat(
-                subplots={'array': [[1, 2], [3, 4]]},
+format8 = NodeFigureFormat(
+                subplots={'array': [[1, 2, 5, 6], [3, 4, 7, 8]]},
                 fig_format={'yscale': 'log', 'yformatter': 'log', 'figtitle': 'Comparison of runs with and without split particles'},
-                axs_format=[{'xscale': 'log', 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'}] * 4,
-                legends_kw=[{'loc': 'ur', 'ncols': 1}] * 4
+                axs_format=[{'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$x$'}] * 4 + [{'xscale': 'log', 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'}] * 4,
+                legends_kw=[{'loc': 'ur', 'ncols': 1}] * 8 
         )
 
-nfig = NodeFigure(format4)
-#nfig.add(histogramx, 0)
-#nfig.add(histogramp, 1)
-for i, (_, h) in enumerate(histogramp.items()):
-    nfig.add(h, i)
-for i, (_, h) in enumerate(histogramp_nosplits.items()):
-    nfig.add(h, i)
-#for _, h in histogramx.items(): 
-#    nfig.add(h, 0)
-#for _, h in histogramx_nosplits.items(): 
-#    nfig.add(h, 0)
-#nfig.add(powerlaw, 1)
+nfig = NodeFigure(format8)
+for i, (_, h) in enumerate(groupx.parents_iter):
+    nfig.add(h, i, instant=False)
+for i, (_, h) in enumerate(groupp.parents_iter):
+    nfig.add(h, i + 4, instant=False)
+
+nfig.add(maxpl, 7, instant=False)
+
+# without splits
+nfig2 = nfig.copy("nosplit", last_kwargs=dict(sde=sde_nosplit, splitted=False))
+
+# figure with both
+nfigboth = NodeFigure.merge([nfig, nfig2])
+
+nfigboth.savefig(figdir + '/' + name + '-both.pdf')
 nfig.savefig(figdir + '/' + name + '.pdf')
-
-draw_node_chain(histogramp_nosplits[T], "splitgraph.pdf")
-
+nfig2.savefig(figdir + '/' + name + '-nosplits.pdf')
 
 #import cProfile
 #pr = cProfile.Profile()
