@@ -14,6 +14,7 @@ import numpy as np
 from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
 from sdesolver.loop.pyloop import py_integration_loop
 from sdesolver.util.datastructures import SDEPPStateOldstyle
+from sdesolver.supervisor import Supervisor
 
 class SDE:
     """
@@ -243,92 +244,6 @@ class SDESolution:
 
         return pstates
 
-class Supervisor:
-    def __init__(self, logger=None, log_every=3):
-        self.pipes = []
-        self.threads = {}
-
-        if logger is None:
-            self.logger = logging.getLogger("Supervisor")
-        else:
-            self.logger = logger
-
-        self._interrupt = False
-        self.log_every = log_every
-        self._last_log_time = time.perf_counter()
-
-    def attach(self, pipe):
-        self.pipes.append(pipe)
-
-
-    def store_data(self, data):
-        thread_id = data['thread_id']
-        if not thread_id in self.threads:
-            self.threads[thread_id] = {'total_time': 0,
-                                       'particles_run': 0,
-                                       'total_phys_time': 0,
-                                       'last_state' : (time.perf_counter(), 0),
-                                       'particles_per_second': 0,
-                                       'total_splits' : 0
-                                      }
-
-        if data['type'] == 'single':
-            self.store_single_particle_data(thread_id, data)
-        elif data['type'] == 'slice':
-            self.store_slice_data(thread_id, data)
-
-    def store_slice_data(self, tid, data):
-        self.threads[tid]['particles_run'] += data['particles']
-        self.threads[tid]['total_splits'] += data['splits']
-
-
-    def store_single_particle_data(self, tid, data):
-        self.threads[tid]['total_time'] += data['time']
-        self.threads[tid]['total_phys_time'] += data['phys_time']
-        self.threads[tid]['particles_run'] += 1
-
-        tdiff = time.perf_counter() - self.threads[tid]['last_state'][0]
-        if not tdiff == 0:
-            pdiff = self.threads[tid]['particles_run'] - self.threads[tid]['last_state'][1]
-            self.threads[tid]['particles_per_second'] = pdiff / tdiff
-            self.threads[tid]['last_state'] = (time.perf_counter(), self.threads[tid]['particles_run'])
-
-    def interrupt(self):
-        self._interrupt = True
-
-    def _data_loop(self):
-        while not self._interrupt:
-            if len(self.pipes) > 0:
-                for p in connection.wait(self.pipes):
-                    try:
-                        data = p.recv()
-                    except (EOFError):
-                        p.close()
-                        self.pipes.remove(p)
-                    else:
-                        self.store_data(data)
-
-            time.sleep(0.1)
-
-    def loop(self):
-        self.logger.info("Supervisor started.")
-
-        dt = Thread(target=self._data_loop)
-        dt.start()
-
-        while not self._interrupt:
-            self.log()
-            time.sleep(self.log_every)
-
-        dt.join()
-
-        self.log()
-        self.logger.info("Supervisor has shut down.")
-            
-    def log(self):
-        self.logger.info(f"Supervisor: {len(self.pipes)} pipes attached and {len(self.threads)} threads tracked.")
-        for p, info in self.threads.items():
-            self.logger.info(f"Thread {p}: total time {info['total_time']}, total physical time {info['total_phys_time']}, particles run {info['particles_run']}, total splits generated {info['total_splits']}, current speed {info['particles_per_second']} pps")
 
 class SDESolver:
     """
@@ -353,7 +268,6 @@ class SDESolver:
         t_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
 
-        #print("SDESolver particle start")
         start_cpp = time.perf_counter()
         t_array[0] = pp_t
         split_times = []
@@ -365,10 +279,10 @@ class SDESolver:
 
         end_cpp = time.perf_counter()
         time_cpp = end_cpp - start_cpp
-        #print("SDESolver", list(zip(split_times, np.array(split_points).reshape((-1, 2)))))
 
         if not supervisor_pipe is None:
-            supervisor_pipe.send({'type': 'single', 'thread_id': threading.get_ident(), 'time': time_cpp, 'phys_time': t_array[0] - pp_t, 'split_count': len(split_times)})
+            # using this reduces performance significantly (x2-x4)
+            supervisor_pipe.send({'thread_id': threading.get_ident(), 'time_cpp': time_cpp, 'time_phys': t_array[0] - pp_t, 'split': len(split_times), 'particles' : 0})
 
         observations = observations_contiguous.reshape((-1, sde.ndim))[:observation_count_array[0]]
 
@@ -414,87 +328,40 @@ class SDESolver:
                 print(f"Particle back-splitted")
             if np.max(split_times) > np.max(observation_times):
                 print(f"particle behind last observation time")
-            #print(f"Particle with start time {pp_t} produced {len(split_times)} splits: avg {np.average(split_times)}, med {np.median(split_times)}, min {np.min(split_times)}, max {np.max(split_times)}")
         #print("sw, w",particle_info, split_info)
 
-        return particle_info, split_info
+        return particle_info, split_info, time_cpp
 
     @staticmethod
-    def solve_one_with_splits(pp_t, pp_x, seed, observation_times, sde, timestep, scheme, initial_weight=1.0):
-        # recursive split solver, will currently not work
-        returndict = SDESolver.solve_one(pp_t, pp_x, seed, observation_times, sde, timestep, scheme)
-        splits = returndict['splits']
-
-        weights = []
-        weight = initial_weight
-        observation_index = 0
-        split_count = 1 # this particle
-        split_cputime = 1.0
-
-        returndicts = []
-        for (split_t, split_x) in splits:
-            # store weight if an observation was made
-            while observation_index < len(observation_times) and split_t > observation_times[observation_index]:
-                weights.append(weight)
-                observation_index += 1
-
-            if observation_index >= len(observation_times):
-                # catch round-off errors (split on the last timestep can lead
-                # to the split time being larger than the observation time
-                print(f"no observations for this pseudoparticle {split_t}, {split_times}, {split_points}")
-                break
-            
-            # decrease weight
-            weight /= 2
-
-            returndicts_split, scount, scpu = SDESolver.solve_one_with_splits(split_t,
-                                                                 np.array(split_x),
-                                                                 seed, # dont use the same seed!
-                                                                 observation_times[observation_index:], # future observations
-                                                                 sde,
-                                                                 timestep,
-                                                                 scheme,
-                                                                 initial_weight=weight)
-
-            returndicts += returndicts_split
-            split_count += scount
-            split_cputime += scpu * (max(observation_times) - split_t) / (max(observation_times) - pp_t) # weigh by split particle lifetime
-
-        while len(weights) < len(observation_times):
-            weights.append(weight)
-
-        #print(observation_times, [np.log2(w) for w in weights])
-        if r1 == -1:
-            print(returntuple, weights)
-        returntuples.append(returntuple + (weights,))
-
-        return returntuples, split_count, split_cputime
-
-    @staticmethod
-    def solve_slice(sde, timestep, observation_times, scheme, seeds_slice, init, supervisor_pipe, recv_pipe):
+    def solve_slice(sde, timestep, observation_times, scheme, seeds_slice, init, supervisor_pipe=None):
         particles = []
         splits = []
+
         last_p = 0
         last_s = 0
+        total_time_cpp = 0
 
         for (pp_t, pp_x, w), seed in zip(init, seeds_slice):
             # slice observation_times to avoid multiple observations of particles at their start time
             observation_times_slice = np.array([t for t in observation_times if t >= pp_t])
-            pinfo, sinfo = SDESolver.solve_one(pp_t, pp_x, seed, observation_times_slice, sde, timestep, scheme, w, )#supervisor_pipe)
+            pinfo, sinfo, time_cpp = SDESolver.solve_one(pp_t, pp_x, seed, observation_times_slice, sde, timestep, scheme, w, )#supervisor_pipe)
             pinfo['observation_times_slice'] = observation_times_slice
             particles.append(pinfo)
             splits += sinfo
-            if len(particles) % 100 == 0:
-                supervisor_pipe.send({'type': 'slice', 'thread_id': threading.get_ident(), 'particles': len(particles) - last_p, 'splits': len(splits) - last_s})
+            total_time_cpp += time_cpp
+
+            if supervisor_pipe is not None and len(particles) % 100 == 0:
+                supervisor_pipe.send({'type': 'slice', 'thread_id': threading.get_ident(), 'time_cpp': total_time_cpp, 'time_phys' : 0, 'particles': len(particles) - last_p, 'splits': len(splits) - last_s})
                 last_p = len(particles)
                 last_s = len(splits)
+                total_time_cpp = 0
 
-        supervisor_pipe.send({'type': 'slice', 'thread_id': threading.get_ident(), 'particles': len(particles) - last_p, 'splits': len(splits) - last_s})
-        
-        supervisor_pipe.close()
+        if supervisor_pipe is not None:
+            supervisor_pipe.send({'type': 'slice', 'thread_id': threading.get_ident(), 'time_cpp': total_time_cpp, 'time_phys' : 0, 'particles': len(particles) - last_p, 'splits': len(splits) - last_s})
+            supervisor_pipe.close()
         return particles, splits
 
-    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor, sderesult):
+    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, sderesult, supervisor=None):
         """
         init: list of 3-tuples (t, [x0, x1, ...], weight)
         """
@@ -511,13 +378,16 @@ class SDESolver:
         collected_split_starts = []
 
         for mod in range(nthreads):
-            recv, send = Pipe(duplex=False)
-            supervisor.attach(recv)
+            if supervisor is not None:
+                recv, send = Pipe(duplex=False)
+                supervisor.attach(recv)
+            else:
+                recv, send = None, None
 
             init_slice = init[mod::nthreads]
             seeds = seed_stream.integers(sys.maxsize, size=len(init_slice))
             slice_args = (sde, timestep, observation_times, self.scheme,
-                          seeds, init_slice, send, recv)
+                          seeds, init_slice, send)
 
             asr = pool.apply_async(self.solve_slice, slice_args)
             asyncresults.append(asr)
@@ -525,8 +395,7 @@ class SDESolver:
         for asr in asyncresults:
             particles, splits = asr.get()
             split_t = np.array([t for t, _, _ in splits])
-            if not len(split_t) == 0:
-                print(f"New {len(split_t)} splits retrieved: avg {np.average(split_t)}, med {np.median(split_t)}, min {np.min(split_t)}, max {np.max(split_t)}")
+
             for par in particles:
                 if par['boundary_state'] != 0:
                     # is picking the last weight right?
@@ -536,13 +405,16 @@ class SDESolver:
 
             collected_split_starts += splits
 
-            self.schedule_slices(sde, timestep, observation_times, seed_stream, splits, pool, supervisor, sderesult)
+            self.schedule_slices(sde, timestep, observation_times, seed_stream, splits, pool, sderesult, supervisor)
 
         import pickle
         with open("splits.pickle", mode="wb") as f:
             pickle.dump(collected_split_starts, f)
 
-    def solve(self, sde, timestep, observation_times, seed_stream=None, nthreads=4):
+    def _format_time(self, t):
+        return "{}s{}ms{}us".format(int(t), int(int(t * 1e3) % 1e3), int(int(t * 1e6) % 1e6))
+
+    def solve(self, sde, timestep, observation_times, seed_stream=None, nthreads=4, supervise=True):
         """
         Solve a SDE with this solver using multiple threads.
 
@@ -570,7 +442,6 @@ class SDESolver:
             seed_stream = Generator(PCG64(1234567890))
 
         start = time.perf_counter()
-        time_cpp = 0
 
         init_copy = []
         for pp_t, pp_x in sde.initial_condition:
@@ -581,73 +452,28 @@ class SDESolver:
         else:
             pool = ThreadPool(processes=nthreads)
 
-        supervisor = Supervisor()
-        supervisor_thread = Thread(target=supervisor.loop)
-        supervisor_thread.start()
+        if supervise:
+            supervisor = Supervisor()
+            supervisor_thread = Thread(target=supervisor.loop)
+            supervisor_thread.start()
+        else:
+            supervisor = None
 
-        self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, supervisor, sdesolution)
+        self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, sdesolution, supervisor=supervisor)
 
         end = time.perf_counter()
-        logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))
-        logging.info("Runtime for propagation and transformation: {}us".format((end - start) * 1e6))
 
-        supervisor.interrupt()
-        supervisor_thread.join()
-        logging.info("Supervisor thread joined")
+        if supervise:
+            supervisor.interrupt()
+            supervisor_thread.join()
+            logging.info("Supervisor thread joined")
+
+        total_time = end - start
+        time_cpp = supervisor.data[1]['time_cpp']
+        logging.info("Total simulation runtime: {}".format(self._format_time(total_time)))
+        logging.info("Total cpp runtime: {}".format(self._format_time(time_cpp)))
+        logging.info("python overhead (= 1 - cpp/(nthreads * total)): {:.3g}%".format(100 * (1 - time_cpp / (nthreads * total_time))))
+
 
         return sdesolution
 
-
-    def solve_st(self, sde, timestep, observation_times, seeds=None):
-        """
-        Solve a SDE with this solver using a linear single-thread approach.
-
-        :param sde: The SDE to be solved.
-        :type sde: :py:class:`SDE`
-
-        :param timestep: Integration timestep
-        :type timestep: float
-
-        :param observation_times: Times at which the pseudo particle distribution will be observed, i.e. stored.
-        :type observation_times: list of float
-        """
-
-        res = SDESolution(sde)
-
-        observation_times = np.array(sorted(observation_times))
-
-        if seeds is None:
-            seeds = list(range(len(sde.initial_condition)))
-
-        start = time.perf_counter()
-        time_cpp = 0
-
-        observations_contiguous = np.empty(len(observation_times) * sde.ndim)
-        # these arrays are needed because we want to give the loop pointers
-        t_array = np.empty(1, dtype=np.float64)
-        observation_count_array = np.empty(1, dtype=np.int32)
-
-        init_copy = copy.deepcopy(sde.initial_condition)
-
-        for (pp_t, pp_x), seed in zip(init_copy, seeds):
-            start_cpp = time.perf_counter()
-            t_array[0] = pp_t
-
-            boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
-                                     sde.drift.address, sde.diffusion.address, sde.boundary.address,
-                                     seed, timestep, 
-                                     observation_times, self.scheme)
-
-            end_cpp = time.perf_counter()
-            time_cpp += end_cpp - start_cpp
-
-            if boundary_state != 0:
-                res._add_escaped(t_array[0], pp_x, boundary_state)
-
-            res._add_observations(observation_times, observations_contiguous.reshape((-1, sde.ndim)), observation_count_array[0])
-
-        end = time.perf_counter()
-        logging.info("Runtime for pseudoparticle propagation: {}us".format(time_cpp * 1e6))
-        logging.info("Runtime for propagation and transformation: {}us".format((end - start) * 1e6))
-
-        return res
