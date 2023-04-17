@@ -29,6 +29,11 @@ typedef double (*scheme_t)(Eigen::VectorXd& x_out, double t, const Eigen::Map<Ei
 double scheme_euler(Eigen::VectorXd &x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion);
 
 /**
+ * KPPC
+ */
+double scheme_kppc(Eigen::VectorXd &x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion);
+
+/**
  * This method takes a string and returns a corresponing scheme callback.
  * This is to enable the control of the scheme from high-level python 
  * without having to expose the scheme callback itself through cython.
