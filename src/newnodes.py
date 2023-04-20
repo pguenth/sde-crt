@@ -1,6 +1,8 @@
 from grapheval.node import *
 from sdesolver import *
 
+import copy
+
 import numpy as np
 
 class PassiveNode(EvalNode):
@@ -33,7 +35,8 @@ class SDEValuesNode(EvalNode):
     """
 
     def do(self, parent_data, common, index, confinements=[], confine_range=[], **kwargs):
-        points = parent_data['x'] 
+        # filter points
+        points = copy.copy(parent_data['x'])
 
         for conf_idx, conf_cond in confinements:
             points = [p for p in points if conf_cond(p[conf_idx])]
@@ -46,8 +49,10 @@ class SDEValuesNode(EvalNode):
         else:
             ret = {'values' : np.array(points).T[index]}
 
+        # filter weights
         if 'weights' in parent_data:
-            weights = parent_data['weights']
+            weights = copy.copy(parent_data['weights'])
+            points = copy.copy(parent_data['x'])
             for conf_idx, conf_cond in confinements:
                 weights = [w for p, w in zip(points, weights) if conf_cond(p[conf_idx])]
 
@@ -65,7 +70,6 @@ class SDEValuesNode(EvalNode):
         #    if b > 0:
         #        print("negative momentum detected in {}/{} particles at node {}".format(b, len(v_array), self.name))
 
-        print(ret)
         return ret
 
 #SDEValues('val', PassiveNode('p', points='Test'))
