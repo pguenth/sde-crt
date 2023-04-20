@@ -157,7 +157,10 @@ class SDECallbackBase:
 
         pfunc = self._cfunc_noparam
 
-        if len(self._types_base) == 4:
+        if len(self._types_base) == 5:
+            self._cfunc = cfunc(self._type_return(*self._types_base))(
+                                   lambda a, b, c, d, e : pfunc(a, b, c, d, e, *param_tuple))
+        elif len(self._types_base) == 4:
             self._cfunc = cfunc(self._type_return(*self._types_base))(
                                    lambda a, b, c, d : pfunc(a, b, c, d, *param_tuple))
         elif len(self._types_base) == 3:
@@ -167,7 +170,7 @@ class SDECallbackBase:
             self._cfunc = cfunc(self._type_return(*self._types_base))(
                                    lambda t, x : pfunc(t, x, *param_tuple))
         else:
-            raise ValueError("types_base must be either 2, 3 or 4 long")
+            raise ValueError("types_base must be 2-5 long")
 
     ###
     ### Import parameters from different data types
@@ -476,5 +479,5 @@ class SDECallbackBoundary(SDECallbackBase):
     _type_return = types.int32
 
 class SDECallbackSplit(SDECallbackBase):
-    _types_base = (types.double, types.CPointer(types.double), types.double, types.CPointer(types.double))
+    _types_base = (types.double, types.CPointer(types.double), types.double, types.CPointer(types.double), types.double)
     _type_return = types.boolean

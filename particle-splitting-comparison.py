@@ -90,8 +90,11 @@ def boundaries(t, x):
     else:
         return 0
 
-def split(t, x, last_t, last_x):
-    if x[1] / last_x[1] >= 1.8:#1.41:
+def split(t, x, last_t, last_x, w, minw, sratio):
+    if w < 0.0009:
+        return False
+
+    if x[1] / last_x[1] >= 1.6:
         return True
     else:
         return False

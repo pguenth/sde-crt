@@ -120,7 +120,7 @@ class SDE:
         """
         return 0
 
-    def split(self, t, x, last_t, last_x):
+    def split(self, t, x, last_t, last_x, w):
         """
         function returning a bool, depending on wether
         the particle should be splitted at the current point. This callback
@@ -175,6 +175,7 @@ class SDESolution:
         #self._escaped_updated = True
 
     def _add_observations(self, observation_times, positions, weights):
+        assert len(observation_times) == len(positions) and len(positions) == len(weights)
         for t, x, w in list(zip(observation_times, positions.copy(), weights)):
             if not t in self.observations:
                 self.observations[t] = {'x': [x], 'weights': [w]}
@@ -263,77 +264,76 @@ class SDESolver:
 
     @staticmethod
     def solve_one(pp_t, pp_x, seed, observation_times, sde, timestep, scheme, initial_weight=1.0, supervisor_pipe=None):
+        """
+        Wrapper around the cython function :py:func:`py_integration_loop`
+        Using a supervisor here reduces performance significantly (x2-x4)
+        """
         observations_contiguous = np.empty(len(observation_times) * sde.ndim)
+        this_weights = np.empty(len(observation_times))
+
         # these arrays are needed because we want to give the loop pointers
         t_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
 
-        start_cpp = time.perf_counter()
         t_array[0] = pp_t
+
         split_times = []
         split_points = []
+        split_weights = []
 
+        start_cpp = time.perf_counter()
         boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
                                  sde.drift.address, sde.diffusion.address, sde.boundary.address, sde.split.address,
-                                 seed, timestep, observation_times, split_times, split_points, scheme)
+                                 seed, timestep, observation_times, split_times, split_points, split_weights, this_weights, initial_weight, scheme)
 
         end_cpp = time.perf_counter()
         time_cpp = end_cpp - start_cpp
 
         if not supervisor_pipe is None:
-            # using this reduces performance significantly (x2-x4)
             supervisor_pipe.send({'thread_id': threading.get_ident(), 'time_cpp': time_cpp, 'time_phys': t_array[0] - pp_t, 'split': len(split_times), 'particles' : 0})
 
         observations = observations_contiguous.reshape((-1, sde.ndim))[:observation_count_array[0]]
-
-        weight = initial_weight
-        weights = []
-        observation_time_it = iter(observation_times)
-        observation_time = next(observation_time_it)
-
-        for split_t in split_times:
-            # store weight if an observation was made between the last and the current split
-            while split_t > observation_time:
-                weights.append(weight)
-                try:
-                    observation_time = next(observation_time_it)
-                except StopIteration:
-                    break
-
-            # decrease weight
-            weight /= 2
-
-            #if observation_index >= len(observation_times):
-            #    # catch round-off errors (split on the last timestep can lead
-            #    # to the split time being larger than the observation time
-            #    print(f"no observations for this pseudoparticle {split_t}, {split_times}, {split_points}")
-            #    break
-
-        while len(weights) < len(observation_times):
-            weights.append(weight)
-            
-        split_weights = initial_weight / 2**(np.arange(len(split_times)) + 1)
-
+        this_weights = this_weights[:observation_count_array[0]]
 
         particle_info = {'final_t': t_array[0],
                          'final_x': pp_x,
                          'observations': observations,
                          'boundary_state': boundary_state,
-                         'weights': weights
+                         'weights': this_weights
                         }
 
-        split_info = list(zip(split_times, np.array(split_points), split_weights)) #{'t': split_times, 'x': split_points, 'w': split_weights}
+        split_info = list(zip(split_times, np.array(split_points), split_weights)) 
+
+        # catch some cases that should not occur
         if not len(split_times) == 0:
             if np.min(split_times) <= pp_t:
                 print(f"Particle back-splitted")
             if np.max(split_times) > np.max(observation_times):
                 print(f"particle behind last observation time")
-        #print("sw, w",particle_info, split_info)
 
         return particle_info, split_info, time_cpp
 
     @staticmethod
     def solve_slice(sde, timestep, observation_times, scheme, seeds_slice, init, supervisor_pipe=None):
+        """
+        Solve a set (slice) of pseudo-particles using :py:func:`solve_one`.
+
+        Parameters
+        ----------
+        sde : SDE
+            The SDE to solve
+        timestep : double
+        observation_times : list of double
+        scheme : str
+            Name of the integration scheme to use
+        seeds_slice : list of integers
+            List of seeds, same length as init
+        init : list of (double, [double], double)-tuples
+            Initial time, position and weights of the slice's particles.
+            Same length as seeds_slice
+        supervisor_pipe : Connection
+
+        """
         particles = []
         splits = []
 
@@ -341,10 +341,12 @@ class SDESolver:
         last_s = 0
         total_time_cpp = 0
 
+        assert len(init) == len(seeds_slice)
+
         for (pp_t, pp_x, w), seed in zip(init, seeds_slice):
             # slice observation_times to avoid multiple observations of particles at their start time
             observation_times_slice = np.array([t for t in observation_times if t >= pp_t])
-            pinfo, sinfo, time_cpp = SDESolver.solve_one(pp_t, pp_x, seed, observation_times_slice, sde, timestep, scheme, w, )#supervisor_pipe)
+            pinfo, sinfo, time_cpp = SDESolver.solve_one(pp_t, pp_x, seed, observation_times_slice, sde, timestep, scheme, w)#supervisor_pipe)
             pinfo['observation_times_slice'] = observation_times_slice
             particles.append(pinfo)
             splits += sinfo
@@ -361,10 +363,36 @@ class SDESolver:
             supervisor_pipe.close()
         return particles, splits
 
-    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, sderesult, supervisor=None):
+    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor=None):
         """
-        init: list of 3-tuples (t, [x0, x1, ...], weight)
+        Apply the slices of a set pseudo-particles to a thread pool, 
+        using :py:func:`solve_one`. Returns a SDESolution instance
+        containing the results.
+
+        Since this function's call order (from splits) depends on the runtime
+        of the worker threads, the seeding procedure used will probably lead 
+        to non-deterministic behaviour even for fixed seeds. This could be
+        fixed in the future by "inheriting" some kind of state from here to
+        the recursive calls.
+
+        Parameters
+        ----------
+        sde : SDE
+            The SDE to solve
+        timestep : double
+        observation_times : list of double
+        scheme : str
+            Name of the integration scheme to use
+        seed_stream : numpy Generator object
+            Seed stream for generating the pseudo particle seeds
+        init : list of (double, [double], double)-tuples
+            Initial time, position and weights of the pseudo particles.
+        pool : ThreadPool
+            pool of threads to apply the workload to
+        supervisor : supervisor.Supervisor (optional)
+
         """
+        sdesolution = SDESolution(sde)
         nthreads = pool._processes
         asyncresults = []
 
@@ -399,17 +427,19 @@ class SDESolver:
             for par in particles:
                 if par['boundary_state'] != 0:
                     # is picking the last weight right?
-                    sderesult._add_escaped(par['final_t'], par['final_x'], par['weights'][-1], par['boundary_state']) 
+                    sdesolution._add_escaped(par['final_t'], par['final_x'], par['weights'][-1], par['boundary_state']) 
 
-                sderesult._add_observations(par['observation_times_slice'], par['observations'], par['weights'])
+                sdesolution._add_observations(par['observation_times_slice'], par['observations'], par['weights'])
 
             collected_split_starts += splits
 
-            self.schedule_slices(sde, timestep, observation_times, seed_stream, splits, pool, sderesult, supervisor)
+        self.schedule_slices(sde, timestep, observation_times, seed_stream, collected_split_starts, pool, sdesolution, supervisor)
 
         import pickle
         with open("splits.pickle", mode="wb") as f:
             pickle.dump(collected_split_starts, f)
+
+        return sdesolution
 
     def _format_time(self, t):
         return "{}s{}ms{}us".format(int(t), int(int(t * 1e3) % 1e3), int(int(t * 1e6) % 1e6))
@@ -432,8 +462,10 @@ class SDESolver:
 
         :param nthreads: Number of threads. If -1, use one thread per solution.
         :type nthreads: int
+
+        :param supervise: Use a Supervisor to print regular status messages about the calculation progress.
+        :type supervise: bool
         """
-        sdesolution = SDESolution(sde)
 
         observation_times = np.array(sorted(observation_times))
 
@@ -459,7 +491,7 @@ class SDESolver:
         else:
             supervisor = None
 
-        self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, sdesolution, supervisor=supervisor)
+        sdesolution = self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, supervisor=supervisor)
 
         end = time.perf_counter()
 

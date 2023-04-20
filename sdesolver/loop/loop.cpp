@@ -4,8 +4,10 @@ int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t,
         Eigen::Map<Eigen::VectorXd> &x, coeff_call_t drift, coeff_call_t diffusion,
         boundary_call_t boundary, split_call_t split, pcg32::state_type seed,
         /*rng_call_t rng,*/ double timestep, 
-        const std::vector<double>& t_observe, std::vector<double> &split_times,
-        std::vector<Eigen::VectorXd> &split_points, const std::string& scheme_name){
+        const std::vector<double>& t_observe,
+        std::vector<double> &split_times, std::vector<Eigen::VectorXd> &split_points,
+        std::vector<double> &split_weights, std::vector<double> &this_weights, double initial_weight,
+        const std::string& scheme_name){
 
     // the call signature is large because I think the effort of zipping
     // stuff into strucs/classes is large because of the intention to 
@@ -15,6 +17,7 @@ int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t,
     // assumes t_observe is sorted ascending
 
     int ndim = x.rows();
+    double weight = initial_weight;
     
     scheme_t scheme_call = scheme_registry_lookup(scheme_name);
 
@@ -51,16 +54,20 @@ int integration_loop(std::vector<Eigen::VectorXd> &observations, double *t,
         // observation
         while (*t >= *observe_it && observe_it != t_observe.end()){
             observations.push_back(x);
+            this_weights.push_back(weight);
             observe_it++;
         }
 
         // splitting
-        if (split(*t, x.data(), t_last_split, x_last_split.data()) && observe_it != t_observe.end()){
+        //! should happen before observation
+        if (split(*t, x.data(), t_last_split, x_last_split.data(), weight) && observe_it != t_observe.end()){
             //std::cout << "test\n";
+            weight /= 2;
             x_last_split = x;
             t_last_split = *t;
             split_points.push_back(x);
             split_times.push_back(*t);
+            split_weights.push_back(weight);
         }
     }
 
@@ -80,18 +87,21 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
         boundary_call_t boundary, split_call_t split, pcg32::state_type seed,
         /*rng_call_t rng,*/ double timestep, 
         const double *t_observe, int t_observe_count, int *split_count, double **split_times,
-        double **split_points, const std::string& scheme_name){
+        double **split_points, double **split_weights, double *this_weights, double initial_weight, const std::string& scheme_name){
 
     std::vector<Eigen::VectorXd> obs_vec;
+    std::vector<double> this_weights_vec;
     std::vector<double> t_obs_vec;
+
     std::vector<Eigen::VectorXd> split_points_vec;
     std::vector<double> split_times_vec;
+    std::vector<double> split_weights_vec;
 
     for (int i = 0; i < t_observe_count; i++){
        t_obs_vec.push_back(t_observe[i]);
     }
 
-    int boundary_state = integration_loop(obs_vec, t, x, drift, diffusion, boundary, split, seed, timestep, t_obs_vec, split_times_vec, split_points_vec, scheme_name);
+    int boundary_state = integration_loop(obs_vec, t, x, drift, diffusion, boundary, split, seed, timestep, t_obs_vec, split_times_vec, split_points_vec, split_weights_vec, this_weights_vec, initial_weight, scheme_name);
 
     // unneccessary: fewer observations are expected, more cannot happen
     //if (t_observe_count != obs_vec.size()){
@@ -107,12 +117,19 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
         i++;
     }
 
+    int j = 0;
+    for (auto& w : this_weights_vec){
+       this_weights[j] = w;
+       j++;
+    }
+
     if (split_points_vec.size() != split_times_vec.size()){
         std::cout << "Error: count of split_points does not match count of split_times\n";
     }
 
     *split_points = new double[split_points_vec.size() * ndim];
     *split_times = new double[split_points_vec.size()];
+    *split_weights = new double[split_weights_vec.size()];
     
     int k = 0;
     for (auto& vec : split_points_vec){
@@ -126,7 +143,12 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
     for (auto& t : split_times_vec){
         (*split_times)[a++] = t;
     }
-    
+
+    int b = 0;
+    for (auto& t : split_weights_vec){
+        (*split_weights)[b++] = t;
+    }
+
     *split_count = split_points_vec.size();
     *observation_count = obs_vec.size();
 

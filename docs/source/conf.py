@@ -36,6 +36,7 @@ extensions = [
         'sphinx.ext.autosectionlabel',
         'breathe',
         'sphinx_rtd_theme',
+        'sphinx.ext.napoleon'
 ]
 
 

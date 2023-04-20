@@ -1,4 +1,7 @@
 import sdesolver as sdes
+import logging
+logging.basicConfig(level=logging.INFO, #filename='log/tests_log_{}.log'.format(sys.argv[1]),
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 import inspect
 import time
@@ -21,15 +24,12 @@ from numba import njit, f8, carray
 import numba
 
 import inspect 
-import logging
 import ctypes
 import warnings
 
 from astropy import units as u
 from astropy import constants
 
-logging.basicConfig(level=logging.INFO, #filename='log/tests_log_{}.log'.format(sys.argv[1]),
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def param_from_numerical(dx_adv, delta, sigma, beta_s, r, n_timesteps):
     """
@@ -98,10 +98,7 @@ def boundaries(t, x):
     else:
         return 0
 
-def nosplit(t, x, last_t, last_x):
-    return False
-
-def split(t, x, last_t, last_x):
+def split(t, x, last_t, last_x, w):
     if x[1] / last_x[1] >= 1.8:#1.41:
         return True
     else:
@@ -152,15 +149,15 @@ sde = sdes.SDE(2, init, drift, diffusion, boundaries, split)
 sde.set_parameters(parameters)
 
 # duplicate for the unsplitted variant
-sde_nosplit = sdes.SDE(2, init, drift, diffusion, boundaries, nosplit)
-sde_nosplit.set_parameters(parameters)
+#sde_nosplit = sdes.SDE(2, init, drift, diffusion, boundaries)
+#sde_nosplit.set_parameters(parameters)
 
 
 cache = PickleNodeCache(cachedir, name)
 
 obs_at = [T/32, T/16, T / 4, T]
 #obs_at = [22.0, 22.5, 23.0, T]
-solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=4, cache=cache, splitted=True, ignore_cache=False, supervise=True)
+solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=64, cache=cache, splitted=True, ignore_cache=False, supervise=True)
 
 histo_opts = {'bin_count' : 60, 'cache' : cache, 'ignore_cache' : True, 'label': 'T={T}, splitted: {splitted}', 'plot': 'hist'}
 

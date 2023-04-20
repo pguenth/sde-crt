@@ -27,7 +27,7 @@ typedef int (*boundary_call_t)(double t, const double *x);
  * this function returned true. Is expected to return true if splitting should 
  * occur now and false otherwise.
  */
-typedef int (*split_call_t)(double t, const double *x, double last_t, const double *last_x);
+typedef int (*split_call_t)(double t, const double *x, double last_t, const double *last_x, const double weight);
 
 /**
  * variant of integration_loop with pointers to avoid having to convert
@@ -48,7 +48,7 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
         boundary_call_t boundary, split_call_t split, pcg32::state_type seed,
         /*rng_call_t rng,*/ double timestep, 
         const double *t_observe, int t_observe_count, int *split_count, double **split_times,
-        double **split_points, const std::string& scheme_name);
+        double **split_points, double **split_weights, double *this_weights, double initial_weight, const std::string& scheme_name);
 
 /**
  * calculates one solution of a stochastic differential equation.
@@ -80,13 +80,18 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
  *      particle splitting callback returned true. 
  * @param split_points Vector that will be filled with positions at which the 
  *      particle splitting callback returned true. 
+ * @param split_weights Vector that will be filled with weights of the 
+ *      particle splits callback returned true. 
+ * @param this_weights Start weight of this particle. Will be updated to contain
+ *      the final weight of the particle.
  * @param scheme_name Name of the scheme to use. See scheme.h for further info.
  */
 int integration_loop(std::vector<Eigen::VectorXd>& observations, double *t, 
         Eigen::Map<Eigen::VectorXd>& x, coeff_call_t drift, coeff_call_t diffusion,
         boundary_call_t boundary, split_call_t split, pcg32::state_type seed,
         /*rng_call_t rng,*/ double timestep, 
-        const std::vector<double>& t_observe, std::vector<Eigen::VectorXd>& split_times, 
-        std::vector<Eigen::VectorXd>& split_points, const std::string& scheme_name);
+        const std::vector<double>& t_observe, std::vector<double>& split_times, 
+        std::vector<Eigen::VectorXd>& split_points, std::vector<double>& split_weights, std::vector<double>& this_weights,
+        double initial_weight, const std::string& scheme_name);
 
 #endif

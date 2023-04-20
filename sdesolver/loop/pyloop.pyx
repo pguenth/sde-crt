@@ -21,13 +21,14 @@ from libc.stdlib cimport malloc, free
 @cython.boundscheck(False)
 cpdef int py_integration_loop(double[:] x_obs, int[:] observation_count, double[:] t, np.ndarray[np.float64_t] x, long drift_addr,
                               long diffusion_addr, long boundary_addr, long split_addr, long seed,#long rng_addr, 
-                              double timestep, double[:] t_obs, list split_times, list split_points, string scheme_name):
+                              double timestep, double[:] t_obs, list split_times, list split_points, list split_weights, double[:] this_weights, double initial_weight, string scheme_name):
     """
     split_points should be an empty list (which gets filled by this function)
     """
     cdef Map[VectorXd] x_map = Map[VectorXd](x)
     cdef double **split_points_p = <double **>malloc(sizeof(double *)) # flattened split_points array is stored here
-    cdef double **split_times_p = <double **>malloc(sizeof(double *)) # flattened split_points array is stored here
+    cdef double **split_times_p = <double **>malloc(sizeof(double *))
+    cdef double **split_weights_p = <double **>malloc(sizeof(double *))
     cdef int split_count
     cdef int i
     cdef int ndim = x.size
@@ -37,18 +38,21 @@ cpdef int py_integration_loop(double[:] x_obs, int[:] observation_count, double[
             <coeff_call_t>(<void *>drift_addr), <coeff_call_t>(<void *>diffusion_addr),
             <boundary_call_t>(<void *>boundary_addr), <split_call_t>(<void *>split_addr), 
             seed,# <rng_call_t>(<void *>rng_addr),
-            timestep, &t_obs[0], len(t_obs), &split_count, split_times_p, split_points_p, scheme_name)
+            timestep, &t_obs[0], len(t_obs), &split_count, split_times_p, split_points_p, split_weights_p, &this_weights[0], initial_weight, scheme_name)
 
     for i in range(split_count):
         p = []
         for j in range(ndim):
             p.append(dereference(split_points_p)[i * ndim + j])
         split_times.append(dereference(split_times_p)[i])
+        split_weights.append(dereference(split_weights_p)[i])
         split_points.append(p)
 
     free(dereference(split_points_p))
     free(dereference(split_times_p))
+    free(dereference(split_weights_p))
     free(split_points_p)
     free(split_times_p)
+    free(split_weights_p)
 
     return boundary_state
