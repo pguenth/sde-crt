@@ -23,3 +23,4 @@ profiling/
 sdesolver/**/*.so
 cache/
 lib_old/
+cython_debug/

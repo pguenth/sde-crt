@@ -132,7 +132,7 @@ cache = PickleNodeCache(cachedir, name)
 
 obs_at = [T/32, T/16, T / 4, T]
 #obs_at = [22.0, 22.5, 23.0, T]
-solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=4, cache=cache, splitted=True, ignore_cache=True, supervise=True)
+solvernode = SDESolverNode('solver', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=4, cache=cache, splitted=True, ignore_cache=False, supervise=True)
 
 histo_opts = {'bin_count' : 60, 'cache' : cache, 'ignore_cache' : False, 'label': 'T={T}, splitted: {splitted}', 'plot': True}
 

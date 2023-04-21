@@ -157,6 +157,8 @@ class SDECallbackBase:
 
         pfunc = self._cfunc_noparam
 
+        assert pfunc is not None
+
         if len(self._types_base) == 5:
             self._cfunc = cfunc(self._type_return(*self._types_base))(
                                    lambda a, b, c, d, e : pfunc(a, b, c, d, e, *param_tuple))
