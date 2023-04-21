@@ -363,7 +363,7 @@ class SDESolver:
             supervisor_pipe.close()
         return particles, splits
 
-    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor=None):
+    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor=None, sdesolution=None):
         """
         Apply the slices of a set pseudo-particles to a thread pool, 
         using :py:func:`solve_one`. Returns a SDESolution instance
@@ -392,7 +392,9 @@ class SDESolver:
         supervisor : supervisor.Supervisor (optional)
 
         """
-        sdesolution = SDESolution(sde)
+        if sdesolution is None:
+            sdesolution = SDESolution(sde)
+
         nthreads = pool._processes
         asyncresults = []
 
@@ -433,7 +435,7 @@ class SDESolver:
 
             collected_split_starts += splits
 
-        self.schedule_slices(sde, timestep, observation_times, seed_stream, collected_split_starts, pool, sdesolution, supervisor)
+        self.schedule_slices(sde, timestep, observation_times, seed_stream, collected_split_starts, pool, supervisor=supervisor, sdesolution=sdesolution)
 
         import pickle
         with open("splits.pickle", mode="wb") as f:
@@ -501,10 +503,11 @@ class SDESolver:
             logging.info("Supervisor thread joined")
 
         total_time = end - start
-        time_cpp = supervisor.data[1]['time_cpp']
         logging.info("Total simulation runtime: {}".format(self._format_time(total_time)))
-        logging.info("Total cpp runtime: {}".format(self._format_time(time_cpp)))
-        logging.info("python overhead (= 1 - cpp/(nthreads * total)): {:.3g}%".format(100 * (1 - time_cpp / (nthreads * total_time))))
+        if supervise:
+            time_cpp = supervisor.data[1]['time_cpp']
+            logging.info("Total cpp runtime: {}".format(self._format_time(time_cpp)))
+            logging.info("python overhead (= 1 - cpp/(nthreads * total)): {:.3g}%".format(100 * (1 - time_cpp / (nthreads * total_time))))
 
 
         return sdesolution

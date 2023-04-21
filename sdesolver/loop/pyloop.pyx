@@ -1,7 +1,7 @@
 # cython: profile=True
 # cython: embedsignature = True
 # distutils: language = c++
-# distutils: sources = sdesolver/loop/loop.cpp sdesolver/loop/scheme.cpp
+# distutils: sources = sdesolver/loop/loop.cpp sdesolver/loop/scheme.cpp sdesolver/loop/broyden.cpp
 
 
 import numpy as np

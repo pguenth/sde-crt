@@ -5,6 +5,7 @@ scheme_t scheme_registry_lookup(const std::string& name){
 
     s_map["euler"] = scheme_euler;
     s_map["kppc"] = scheme_kppc;
+    s_map["semiimplicit_weak"] = scheme_semiimplicit_weak;
     
     return s_map[name];
 }
@@ -69,6 +70,91 @@ double scheme_kppc(Eigen::VectorXd& x_out, double t, const Eigen::Map<Eigen::Vec
     x_out(1) = xy_ces(1);
     return t + ts;
 }
+
+//
+// Semi-Implicit
+//
+
+std::vector<Eigen::MatrixXd> semiimplicit_weak_get_B_diff(double t, const Eigen::VectorXd& x, coeff_call_t diffusion, double delta = 0.00001) {
+    int ndim = x.rows();
+    std::vector<Eigen::MatrixXd> r;
+    Eigen::VectorXd ppls;
+    Eigen::VectorXd pmns;
+    Eigen::MatrixXd diff_ppls(ndim, ndim);
+    Eigen::MatrixXd diff_pmns(ndim, ndim);
+    //std::cout << "d 12\n";
+    for (int k = 0; k < ndim; k++){
+        ppls = x;
+        pmns = x;
+        ppls(k) += delta;
+        pmns(k) -= delta;
+        diffusion(diff_ppls.data(), t, ppls.data());
+        diffusion(diff_pmns.data(), t, pmns.data());
+        r.push_back((diff_ppls - diff_pmns) / (2 * delta));
+    }
+    //std::cout << "d 13\n";
+
+    return r;
+}
+
+Eigen::VectorXd semiimplicit_weak_get_C(double t_bar, const Eigen::VectorXd& x_bar, coeff_call_t diffusion) {
+    int ndim = x_bar.rows();
+    //std::cout << "d 8\n";
+    std::vector<Eigen::MatrixXd> difftensor = semiimplicit_weak_get_B_diff(t_bar, x_bar, diffusion);
+    //std::cout << "d 9\n";
+    Eigen::MatrixXd diffmatrix(ndim, ndim);
+    diffusion(diffmatrix.data(), t_bar, x_bar.data());
+    //std::cout << "d 10\n";
+    Eigen::VectorXd r(ndim);
+    for (int i = 0; i < ndim; i++){
+        r(i) = 0;
+        for (int j = 0; j < ndim; j++){
+            for (int k = 0; k < ndim; k++){
+                r(i) += diffmatrix(k, j) * difftensor.at(k)(i, j);
+            }
+        }
+    }
+    //std::cout << "d 11\n";
+
+    return r;
+}
+
+Eigen::VectorXd semiimplicit_weak_get_implicit(Eigen::VectorXd x_bar, double t, const Eigen::VectorXd& x, double timestep, Eigen::VectorXd rnd, coeff_call_t drift_call, coeff_call_t diffusion_call) {
+    int ndim = x.rows();
+    double t_bar = t + timestep / 2;
+    //std::cout << "d 3\n";
+    Eigen::VectorXd C = semiimplicit_weak_get_C(t_bar, x_bar, diffusion_call);
+
+    Eigen::MatrixXd diff_bar(ndim, ndim);
+    diffusion_call(diff_bar.data(), t_bar, x_bar.data());
+    //std::cout << "d 4\n";
+    Eigen::VectorXd drift_bar(ndim);
+    drift_call(drift_bar.data(), t_bar, x_bar.data());
+    //std::cout << "d 5\n";
+
+    Eigen::VectorXd diff = sqrt(timestep) * diff_bar * rnd;
+    //std::cout << "d 6\n";
+    Eigen::VectorXd drift = drift_bar * timestep;
+    //std::cout << "d 7\n";
+    
+    return 2 * x - 2 * x_bar + drift - C / 2 * timestep + diff;
+}
+
+double scheme_semiimplicit_weak(Eigen::VectorXd& x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion) {
+    bool has_converged;
+    //std::cout << "d 1\n";
+    Eigen::VectorXd x_bar_solution = broyden([=](Eigen::VectorXd x_bar){return semiimplicit_weak_get_implicit(x_bar, t, x, timestep, rndvec, drift, diffusion);}, x, 1e-8, 2000, &has_converged);
+    //std::cout << "d 2\n";
+    Eigen::VectorXd result = 2 * x_bar_solution - x;
+    //std::cout << "d 3\n";
+    //std::cout << result(0) << ", " << result(1) << "\n";
+    //std::cout << "d 4\n";
+    x_out = result;
+    //std::cout << "d 5\n";
+    return t + timestep;
+    //return x_out;
+}
+
 
 /*
 ImplicitEulerScheme::ImplicitEulerScheme(drift_t drift, diffusion_t diffusion, timestep_t timestep, StochasticProcess *process) : 
@@ -199,101 +285,10 @@ Eigen::VectorXd SemiImplicitWeakScheme::get_C(const SpaceTimePoint& p_bar) const
     return r;
 }
 
+
 Eigen::VectorXd SemiImplicitWeakScheme::get_implicit(Eigen::VectorXd x_bar, const SpaceTimePoint& p, double timestep, Eigen::VectorXd rnd) const {
     SpaceTimePoint p_bar(p.t + timestep / 2, x_bar);
     return 2 * p.x - 2 * x_bar + _drift(p_bar) - get_C(p_bar) / 2 + _diffusion(p_bar) * rnd;
 }
-
-SemiImplicitWeakScheme2::SemiImplicitWeakScheme2(drift_t drift, diffusion_t diffusion, timestep_t timestep, StochasticProcess *process) :
-    SDESchemeCopyable(drift, diffusion, timestep, process) {}
-
-SpaceTimePoint SemiImplicitWeakScheme2::propagate(const SpaceTimePoint& p) const {
-    double ts = timestep_at(p);
-    bool has_converged;
-    Eigen::VectorXd rnd = next_random();
-    Eigen::VectorXd x_bar_solution = broyden([=](Eigen::VectorXd x_bar){return get_implicit(x_bar, p, ts, rnd);}, p.x, 1e-8, 2000, &has_converged);
-    if (!has_converged){
-    //    std::cout << "no convergence. random numbers are " << rnd(0) << " and " << rnd(1) << "\n";
-    }else{
-        //std::cout << "other random numbers are " << rnd(0) << " and " << rnd(1) << "\n";
-    }
-
-
-    double b = 0.0225;
-    double xsh = 0.002;
-    double alpha_max = - kruells94_dbetadx(0, xsh, b);
-    double y_bar_analytic_min = p.x(1) / (1 - 0.001 * alpha_max / 2);
-    
-    Eigen::VectorXd x_nplus1 = 2 * x_bar_solution - p.x;
-
-//    if (x_nplus1(1) <= 1){
-//        // should be > 1 because the momentum should only increase 
-//        // it could decrease if the timestep is too large (controllable) or if the C_ij term becomes too large (harder to control)
-//
-//        std::cout << "y_bar_analytic_min: " << y_bar_analytic_min << "; x_bar_solution: " << x_bar_solution(0) << "; y_bar_solution: " << x_bar_solution(1) << "\n";
-//        
-//        Eigen::VectorXd x_nplus1_euler = p.x + _drift(p) * ts + _diffusion(p) * rnd * sqrt(ts);
-//        std::cout << "x(n+1): " << x_nplus1(0) << "; y(n+1): " << x_nplus1(1) << "\n";
-//        std::cout << "Euler: x(n+1): " << x_nplus1_euler(0) << "; y(n+1): " << x_nplus1_euler(1) << "\n";
-//        std::cout << "drift x: " << _drift(p)(0) << "; drift y: " << _drift(p)(1) << "\n";
-//
-//        if (x_bar_solution(1) < y_bar_analytic_min)
-//            std::cout << "y_bar_solution too small!\n";
-//
-//        if (x_bar_solution(1) < p.x(1))
-//            std::cout << "y_bar < y: " << x_bar_solution(1) << " < " << p.x(1) << "\n";
-//    }
-
-    return SpaceTimePoint(p.t + ts, x_nplus1);
-}
-
-std::vector<Eigen::MatrixXd> SemiImplicitWeakScheme2::get_B_diff(const SpaceTimePoint& p, double delta = 0.00001) const {
-    int ndim = p.x.rows();
-    std::vector<Eigen::MatrixXd> r;
-    SpaceTimePoint ppls;
-    SpaceTimePoint pmns;
-    for (int k = 0; k < ndim; k++){
-        ppls = p;
-        pmns = p;
-        ppls.x(k) += delta;
-        pmns.x(k) -= delta;
-        r.push_back((_diffusion(ppls) - _diffusion(pmns)) / (2 * delta));
-    }
-
-    return r;
-}
-
-Eigen::VectorXd SemiImplicitWeakScheme2::get_C(const SpaceTimePoint& p_bar) const {
-    int ndim = p_bar.x.rows();
-    std::vector<Eigen::MatrixXd> difftensor = get_B_diff(p_bar);
-    Eigen::MatrixXd diffmatrix = _diffusion(p_bar);
-    Eigen::VectorXd r(ndim);
-    for (int i = 0; i < ndim; i++){
-        r(i) = 0;
-        for (int j = 0; j < ndim; j++){
-            for (int k = 0; k < ndim; k++){
-                r(i) += diffmatrix(k, j) * difftensor.at(k)(i, j);
-            }
-        }
-    }
-
-    return r;
-}
-
-Eigen::VectorXd SemiImplicitWeakScheme2::get_implicit(Eigen::VectorXd x_bar, const SpaceTimePoint& p, double timestep, Eigen::VectorXd rnd) const {
-    SpaceTimePoint p_bar(p.t + timestep / 2, x_bar);
-    Eigen::VectorXd C = get_C(p_bar);
-    Eigen::VectorXd diff =  sqrt(timestep) * _diffusion(p_bar) * rnd;
-    Eigen::VectorXd drift = _drift(p_bar) * timestep;
-    //if (not C(1) == 0)
-    //    std::cout << "C is " << C(0) << ", " << C(1) << "\n";
-    //if (not diff(1) == 0)
-    //    std::cout << "diff is " << diff(0) << ", " << diff(1) << "\n";
-    //if (drift(1) < 0)
-    //    std::cout << "drift is " << drift(0) << ", " << drift(1) << "\n";
-
-    //std::cout << "Test scheme2\n";
-    return 2 * p.x - 2 * x_bar + drift - C / 2 * timestep + diff;
-}
-
 */
+

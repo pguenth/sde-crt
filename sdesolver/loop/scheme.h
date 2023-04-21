@@ -5,6 +5,8 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <vector>
+#include "broyden.h"
 
 /**
  * Callback type for SDE coefficients.
@@ -34,12 +36,19 @@ double scheme_euler(Eigen::VectorXd &x_out, double t, const Eigen::Map<Eigen::Ve
 double scheme_kppc(Eigen::VectorXd &x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion);
 
 /**
- * This method takes a string and returns a corresponing scheme callback.
+ * Semiimplicit-Weak second order 
+ */
+double scheme_semiimplicit_weak(Eigen::VectorXd &x_out, double t, const Eigen::Map<Eigen::VectorXd> &x, const Eigen::VectorXd& rndvec, double timestep, coeff_call_t drift, coeff_call_t diffusion);
+
+/**
+ * This method takes a string and returns a corresponding scheme callback.
  * This is to enable the control of the scheme from high-level python 
  * without having to expose the scheme callback itself through cython.
  *
  * Currently supported:
  *  - 'euler' The simple euler scheme
+ *  - 'kppc' Kloeden-Platen predictor-corrector scheme (Achterberg 2011)
+ *  - 'semiimplicit_weak' Second-order semiimplicit weak scheme (Gardiner)
  */
 scheme_t scheme_registry_lookup(const std::string& name);
 

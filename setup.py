@@ -20,6 +20,6 @@ extensions = [
 dist = setup(
         name = "sdesolver",
         version = "1.0",
-        ext_modules = cythonize(extensions, build_dir="build/", annotate=True, language_level = 3),
+        ext_modules = cythonize(extensions, build_dir="build/", annotate=True, language_level=3, gdb_debug=True),
         packages = ["sdesolver"]
 )
