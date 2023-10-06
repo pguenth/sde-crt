@@ -3,6 +3,7 @@ import time
 import logging
 import sys
 import pprint
+import random
 
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Pipe, connection
@@ -11,10 +12,14 @@ import threading
 
 import numpy as np
 
-from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
-from sdesolver.loop.pyloop import py_integration_loop
-from sdesolver.util.datastructures import SDEPPStateOldstyle
-from sdesolver.supervisor import Supervisor
+#from sdesolver.sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
+#from sdesolver.loop.pyloop import py_integration_loop
+#from sdesolver.util.datastructures import SDEPPStateOldstyle
+#from sdesolver.supervisor import Supervisor
+from .sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
+from .loop.pyloop import py_integration_loop
+from .util.datastructures import SDEPPStateOldstyle
+from .supervisor import Supervisor
 
 class SDE:
     """
@@ -83,15 +88,42 @@ class SDE:
         # set the resulting callback
         setattr(self, name, cback)
 
+    @property
+    def parameters(self):
+        return self._parameters
+
+    @parameters.setter
+    def parameters(self, p):
+        self.set_parameters(p)
+
     def set_parameters(self, parameters):
         """
         set all parameters with the same dict. Superflous parameters are
         ignored by SDECallbackBase.
         """
+        self._parameters = parameters
         self.drift.parameters = parameters
         self.diffusion.parameters = parameters
         self.boundary.parameters = parameters
         self.split.parameters = parameters
+    
+    # doesnt work bc the callbacks extract their required parameters
+    #def get_parameters(self):
+    #    """
+    #    gets the parameters set. Raises an exception if the callbacks
+    #    have different parameter sets.
+    #    """
+    #    parameters = self.drift.parameters
+
+    #    for cb in [self.diffusion, self.boundary, self.split]:
+    #        if parameters != cb.parameters:
+    #            for k, v in parameters.items():
+    #                print(k, v)
+    #            for k, v in cb.parameters.items():
+    #                print(k, v)
+    #            raise ValueError(f"Parameters of {cb} differ")
+
+    #    return parameters
     
     def drift(self, out, t, x):
         """
@@ -175,7 +207,12 @@ class SDESolution:
         #self._escaped_updated = True
 
     def _add_observations(self, observation_times, positions, weights):
-        assert len(observation_times) == len(positions) and len(positions) == len(weights)
+        try:
+            assert len(observation_times) == len(positions) and len(positions) == len(weights)
+        except AssertionError as e:
+            print("obspos", len(observation_times), len(positions), len(weights))
+            raise e
+
         for t, x, w in list(zip(observation_times, positions.copy(), weights)):
             if not t in self.observations:
                 self.observations[t] = {'x': [x], 'weights': [w]}
@@ -273,9 +310,11 @@ class SDESolver:
 
         # these arrays are needed because we want to give the loop pointers
         t_array = np.empty(1, dtype=np.float64)
+        weight_array = np.empty(1, dtype=np.float64)
         observation_count_array = np.empty(1, dtype=np.int32)
 
         t_array[0] = pp_t
+        weight_array[0] = initial_weight
 
         split_times = []
         split_points = []
@@ -284,7 +323,7 @@ class SDESolver:
         start_cpp = time.perf_counter()
         boundary_state = py_integration_loop(observations_contiguous, observation_count_array, t_array, pp_x,
                                  sde.drift.address, sde.diffusion.address, sde.boundary.address, sde.split.address,
-                                 seed, timestep, observation_times, split_times, split_points, split_weights, this_weights, initial_weight, scheme)
+                                 seed, timestep, observation_times, split_times, split_points, split_weights, this_weights, weight_array, scheme)
 
         end_cpp = time.perf_counter()
         time_cpp = end_cpp - start_cpp
@@ -297,6 +336,7 @@ class SDESolver:
 
         particle_info = {'final_t': t_array[0],
                          'final_x': pp_x,
+                         'final_weight': weight_array[0],
                          'observations': observations,
                          'boundary_state': boundary_state,
                          'weights': this_weights
@@ -347,7 +387,10 @@ class SDESolver:
             # slice observation_times to avoid multiple observations of particles at their start time
             observation_times_slice = np.array([t for t in observation_times if t >= pp_t])
             pinfo, sinfo, time_cpp = SDESolver.solve_one(pp_t, pp_x, seed, observation_times_slice, sde, timestep, scheme, w)#supervisor_pipe)
-            pinfo['observation_times_slice'] = observation_times_slice
+
+            # crop observation_times_slice to account for escaped particles
+            pinfo['observation_times_slice'] = observation_times_slice[:len(pinfo['observations'])]
+
             particles.append(pinfo)
             splits += sinfo
             total_time_cpp += time_cpp
@@ -428,8 +471,7 @@ class SDESolver:
 
             for par in particles:
                 if par['boundary_state'] != 0:
-                    # is picking the last weight right?
-                    sdesolution._add_escaped(par['final_t'], par['final_x'], par['weights'][-1], par['boundary_state']) 
+                    sdesolution._add_escaped(par['final_t'], par['final_x'], par['final_weight'], par['boundary_state']) 
 
                 sdesolution._add_observations(par['observation_times_slice'], par['observations'], par['weights'])
 
@@ -473,7 +515,8 @@ class SDESolver:
 
         if seed_stream is None:
             from numpy.random import Generator, PCG64
-            seed_stream = Generator(PCG64(1234567890))
+            #seed_stream = Generator(PCG64(1234567890))
+            seed_stream = Generator(PCG64(random.randint(0, int(1e10))))
 
         start = time.perf_counter()
 
@@ -493,6 +536,8 @@ class SDESolver:
         else:
             supervisor = None
 
+        print("sde drift:", ", ".join([f"{k}: {v}" for k, v in sde.drift.parameters.items()]))
+        print("sde diffusion:", ", ".join([f"{k}: {v}" for k, v in sde.diffusion.parameters.items()]))
         sdesolution = self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, supervisor=supervisor)
 
         end = time.perf_counter()
@@ -510,5 +555,5 @@ class SDESolver:
             logging.info("python overhead (= 1 - cpp/(nthreads * total)): {:.3g}%".format(100 * (1 - time_cpp / (nthreads * total_time))))
 
 
-        return sdesolution
+        return {'solution': sdesolution, 'runtime': total_time}
 
