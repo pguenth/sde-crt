@@ -55,3 +55,7 @@ versions of the software stack I used for this:
     python-sphinx 5.0.1
     python-sphinx_rtd_theme 1.0.0
     doxygen 1.9.3
+
+run stuff in the main directory of the source code and set
+$PYTHONPATH=".:$PYTHONPATH" to be able to run for example
+python runs/foo.py

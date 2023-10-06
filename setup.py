@@ -9,7 +9,7 @@ kwargs_ext = { 'include_dirs' : eigency.get_includes() + [numpy.get_include(), '
                #'library_dirs' : ["lib/"],
                #'libraries' : ["batch"], # dynamic linking at link time
                #'extra_objects' : ["lib/libbatch.a"], #static linking
-               'extra_compile_args' : ["-std=c++11", "-O3"]#['-fsanitize=address', '-fno-omit-frame-pointer']
+               'extra_compile_args' : ["-std=c++11", "-O3", "-g"]#['-fsanitize=address', '-fno-omit-frame-pointer']
              }
 
 extensions = [
