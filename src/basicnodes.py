@@ -1,6 +1,8 @@
 import numbers
 import copy
 
+import logging 
+
 import numpy as np
 from scipy import stats, optimize
 
@@ -70,6 +72,26 @@ class FunctionNode(EvalNode):
         line = ax.plot(xvals, yvals, label=kwargs['label'])[0]
         return line
 
+class HistogramCutoffNode(EvalNode):
+    def do(self, parent_data, common, cutoff=0.5, **kwargs):
+        from scipy.interpolate import make_interp_spline
+        from scipy.optimize import root_scalar
+        param, histogram, errors, edges = parent_data['histogram']
+        spl = make_interp_spline(param, histogram, k=3)
+        co = max(histogram) * cutoff
+        root = root_scalar(lambda x : spl(x) - co, bracket=(0.1 * max(param), max(param)))
+        if root.flag != "converged":
+            return np.nan
+        else:
+            return root.root
+
+    def plot(self, v, ax, common, **kwargs):
+        return ax.axvline(x=v, color=self.get_color())
+
+
+
+
+
 class HistogramNode(EvalNode):
     @staticmethod
     def _get_bin_count(bin_count, average_bin_size, n_states):
@@ -93,6 +115,7 @@ class HistogramNode(EvalNode):
             'style' : 'step',
             'show_errors' : True,
             'plot_kwargs' : {},
+            'hide_zeros' : False
         } | kwargs
 
         if not kwargs['auto_normalize'] is None:
@@ -127,7 +150,6 @@ class HistogramNode(EvalNode):
         if kwargs['bin_width'] is None:
             bin_count = type(self)._get_bin_count(kwargs['bin_count'], kwargs['average_bin_size'], len(rev))
             if kwargs['log_bins']:
-                #print(min(rev_dim), max(rev_dim))
                 bins = np.logspace(np.log10(min(rev_dim)), np.log10(max(rev_dim)), bin_count + 1)
             else:
                 bins = np.linspace(min(rev_dim), max(rev_dim), bin_count + 1)
@@ -137,7 +159,6 @@ class HistogramNode(EvalNode):
             else:
                 bins = np.arange(min(rev_dim), max(rev_dim), kwargs['bin_width'])
 
-        print("weights", self.name, sum(weights))
         try:
             histogram, edges = np.histogram(rev_dim, bins=bins, weights=weights, density=False)
             histogram_unweighted, _ = np.histogram(rev_dim, bins=bins, density=False)
@@ -170,7 +191,24 @@ class HistogramNode(EvalNode):
         return param, histogram, errors, edges
 
     def plot(self, v, ax, common, **kwargs):
-        param, histogram, errors, edges = v
+        if kwargs['hide_zeros']:
+            param = []
+            histogram = []
+            errors = []
+            edges = []
+            for x, h, dh, e in zip(*v):
+                if not h == 0:
+                    param.append(x)
+                    histogram.append(h)
+                    errors.append(dh)
+                    edges.append(e)
+            param = np.array(param)
+            histogram = np.array(histogram)
+            errors = np.array(errors)
+            edges = np.array(edges + [v[3][-1]])
+        else:
+            param, histogram, errors, edges = v
+                
 
         fmt_fields = self.tree_kwargs()
 
@@ -183,14 +221,17 @@ class HistogramNode(EvalNode):
                 ax.fill_between(param, hlower, hupper, step='mid', color=self.get_color(), alpha=0.5)
             # proplot where parameter not working (see github issue)
             # using edges[1:] yields the same behaviour where='mid' should
+            print("hist step max min", min(edges[1:]), max(edges[1:]), kwargs['plot_kwargs'])
             lines = ax.step(edges[1:], histogram, label=label, color=self.get_color(), linewidth=0.7, **kwargs['plot_kwargs'])
+        elif kwargs['style'] == 'stairs':
+            lines = [ax.stairs(histogram, edges, label=label, color=self.get_color(), baseline=1e-5, linewidth=0.7, **kwargs['plot_kwargs'])]
         elif kwargs['style'] == 'line':
             shadedata = errors if kwargs['show_errors'] else None
             lines = ax.plot(param, histogram, shadedata=shadedata, label=label, color=self.get_color(), **kwargs['plot_kwargs'])
         else:
             raise ValueError("Invalid histogram plot style used. Valid: step, line")
 
-        self.set_color(lines[0].get_color())
+        #self.set_color(lines[0].get_color())
 
         return lines[0]
 
@@ -362,7 +403,7 @@ class PowerlawNode(EvalNode):
         # cut data at the first empty bin
         # most physical solution imho, because ignoring zeroes
         # is not really good
-        if np.count_nonzero(y) == len(y):
+        if False or np.count_nonzero(y) == len(y):
             max_index = len(y)
         else:
             max_index = np.argmax(y == 0)
@@ -372,6 +413,10 @@ class PowerlawNode(EvalNode):
         if not errors is None:
             errors = errors[:max_index]
 
+        if len(x) < 3:
+            logging.warning("Powerlaw could not be fit, too few points")
+            return np.nan, np.nan, np.inf, np.inf, ((0, 1), (0, 1))
+
         lims = ((min(x), max(x)), (min(y), max(y)))
 
         if not kwargs['ln_x']:
@@ -380,6 +425,12 @@ class PowerlawNode(EvalNode):
         if not errors is None:
             errors = np.abs(errors / y) # dln(x) = dx / x
         y = np.log(y)
+
+        #if True:
+        #    popt, pcov = optimize.curve_fit(lambda x, m, t : t * x**m , x, y, sigma=errors, p0=[-3, 1])
+        #    m, t = popt
+        #    dm, dt = np.sqrt(np.diag(pcov))
+        #    print(m, t, dm, dt)
         
         if not errors is None and kwargs['error_type'] == 'kiessling':
             m, t, dm, dt, _, _ = kieslinregress(x, y, errors)
@@ -398,6 +449,7 @@ class PowerlawNode(EvalNode):
             m *= -1
 
         return np.exp(t), m, np.exp(t) * dt, dm, lims
+        #return t, m, np.exp(t) * dt, dm, lims
 
     def common(self, common, **kwargs):
         if not 'color' in common:
@@ -425,12 +477,73 @@ class PowerlawNode(EvalNode):
         y_plot = [y for y in y_plot if y <= lims[1][1] and y >= lims[1][0]]
 
         style = dict(linestyle='dotted', color=self.get_color()) | kwargs['plot_kwargs']
-
         line = ax.plot(x_plot, y_plot, label=label, **style) 
 
         self.set_color(line[0].get_color())
 
         return line[0]
+
+class CDFNode(EvalNode):
+    """
+    Cumulative distribution function
+    """
+    def plot(self, data, ax, common, **kwargs):
+        param, cdf = data
+        return ax.plot(param, cdf)
+
+    def do(self, parent_data, common, **kwargs):
+        param, histogram, errors, edges = parent_data
+        cdf = np.cumsum(histogram)
+        return param, cdf
+
+class CCDFNode(EvalNode):
+    """
+    Complementary Cumulative distribution function
+    """
+    def plot(self, data, ax, common, **kwargs):
+        param, ccdf = data
+        return ax.plot(param, ccdf)
+
+    def do(self, parent_data, common, **kwargs):
+        param, histogram, errors, edges = parent_data
+        ccdf = np.flip(np.cumsum(np.flip(histogram)))
+        return param, ccdf
+
+class MLEPowerlawNode(PowerlawNode):
+    """
+    Maximum Likelihood Estimation
+    for powerlaw fit
+
+    following: https://arxiv.org/abs/0706.1062
+    which was also implemented in: https://github.com/jeffalstott/powerlaw
+    
+    info:
+    https://stats.stackexchange.com/questions/267464/algorithms-for-weighted-maximum-likelihood-parameter-estimation
+    """
+    def do(self, parent_data, common, **kwargs):
+        vals = np.array(parent_data['values'])
+
+        if 'weights' in parent_data:
+            weights = np.array(parent_data['weights'])
+        else:
+            weights = np.ones(len(vals))
+
+        if len(vals.shape) > 1:
+            vals_dim = np.array(vals).T[0]
+        else:
+            vals_dim = vals
+        
+        vmin = min(vals_dim)
+        vmax = max(vals_dim)
+        logs = np.log(vals_dim / vmin)
+        alpha = 1 + np.sum(weights) / np.sum((weights) * np.log(vals_dim / vmin))
+        a = (alpha - 1) / vmin
+
+        dalpha = (alpha - 1) / np.sqrt(len(vals_dim)) + 1 / len(vals_dim)
+
+        lims = ((vmin, vmax), (a * vmax**(-alpha), a * vmin**(-alpha)))
+        #lims = ((min(vals_dim), max(vals_dim)), (-np.inf, np.inf))
+        return a, -alpha, np.nan, dalpha, lims
 
 class MapNode(EvalNode):
     def get_callback(self, **kwargs):
@@ -475,6 +588,44 @@ class LimitNode(MapNode):
 class CommonParamNode(EvalNode):
     def do(self, parent_data, common, **kwargs):
         return common['param'][kwargs['key']]
+
+class RealScatterNode(EvalNode):
+    """
+    Simple scatter plot given a parent for x and one for y data
+
+    Parent specification:
+
+    kwargs:
+     * label: The label of the datarow
+
+    """
+    def def_kwargs(self, **kwargs):
+        kwargs = {
+            'label' : '',
+            'plot_kwargs' : {},
+            'value_limits' : (-np.inf, np.inf),
+        } | kwargs
+
+        return kwargs
+
+    def do(self, parent_data, common, **kwargs):
+        print("test123")
+        return parent_data['x'], parent_data['y']
+
+    def plot(self, data, ax, common, **kwargs):
+        x, y = data
+        dy = None
+
+        if np.all(dy is None):
+            bardata = None
+        elif np.any(dy is None):
+            bardata = [0 if b is None else b for b in bardata]
+        else:
+            bardata = dy
+
+        def_kw = dict(lw=1, barlw=0.5, marker='x', capsize=1.0)
+        lines = ax.plot(x, y, bardata=bardata, label=kwargs['label'], **(def_kw | kwargs['plot_kwargs']))
+        return lines[0]
 
 class ScatterNode(EvalNode):
     """

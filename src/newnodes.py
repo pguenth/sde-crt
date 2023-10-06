@@ -5,15 +5,6 @@ import copy
 
 import numpy as np
 
-class PassiveNode(EvalNode):
-    """
-    A node that returns its kwargs. Use it to inject arbitrary data into
-    a chain
-    """
-    def do(self, parent_data, common, **kwargs):
-        return kwargs
-
-
 class SDESolverNode(EvalNode):
     def do(self, parent_data, common, sde, scheme, timestep, observation_times, nthreads=4, supervise=True, **kwargs):
         solver = SDESolver(scheme)
