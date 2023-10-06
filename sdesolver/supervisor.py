@@ -1,5 +1,5 @@
 import time
-from threading import Thread
+from threading import Thread, Lock
 from multiprocessing import connection
 
 class Supervisor:
@@ -27,6 +27,7 @@ class Supervisor:
     def __init__(self, logger=None, log_every=3, fields_cumulate=None, fields_rates=None, fields_total=None, fields_total_rates=None):
         self.pipes = []
         self.threads = {}
+        self._threads_lock = Lock()
 
         if logger is None:
             import logging
@@ -64,11 +65,12 @@ class Supervisor:
         store retrieved data thread-wise
         """
         thread_id = data['thread_id']
-        if not thread_id in self.threads:
-            self.threads[thread_id] = {c : 0 for c in self.fields_cumulate} 
+        with self._threads_lock:
+            if not thread_id in self.threads:
+                self.threads[thread_id] = {c : 0 for c in self.fields_cumulate} 
 
-        for c in self.fields_cumulate:
-            self.threads[thread_id][c] += data[c]
+            for c in self.fields_cumulate:
+                self.threads[thread_id][c] += data[c]
 
         # rates are updated in log to save computational time
 
@@ -79,9 +81,10 @@ class Supervisor:
         for k in self.fields_total:
             self.totals[k] = 0
 
-        for p, info in self.threads.items():
-            for e in self.fields_total:
-                self.totals[e] += info[e]
+        with self._threads_lock:
+            for p, info in self.threads.items():
+                for e in self.fields_total:
+                    self.totals[e] += info[e]
 
         self._update_rates(self.fields_total_rates, self.totals)
 
@@ -123,8 +126,9 @@ class Supervisor:
             store_dict[ls_name] = ls
 
     def _update_all_thread_rates(self):
-        for thread_id in self.threads.keys():
-            self._update_rates(self.fields_rates, self.threads[thread_id])
+        with self._threads_lock:
+            for thread_id in self.threads.keys():
+                self._update_rates(self.fields_rates, self.threads[thread_id])
 
     def interrupt(self):
         self._interrupt = True
@@ -179,8 +183,9 @@ class Supervisor:
         for r in self.fields_total_rates:
             totalstr += r + " per second: {" + r + "_rate:g}, "
 
-        for p, info in self.threads.items():
-            self.logger.info(("Thread {p}: " + threadstr).format(p=p, **info))
+        with self._threads_lock:
+            for p, info in self.threads.items():
+                self.logger.info(("Thread {p}: " + threadstr).format(p=p, **info))
         self.logger.info(("Total: " + totalstr).format(**self.totals))
 
     @property
