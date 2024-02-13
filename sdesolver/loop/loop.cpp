@@ -112,6 +112,8 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
     //}
 
     int ndim = x.rows();
+
+    // observations
     int i = 0;
     for (auto& vec : obs_vec){
         for (int j = 0; j < ndim; j++){
@@ -120,6 +122,7 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
         i++;
     }
 
+    // weights
     int j = 0;
     for (auto& w : this_weights_vec){
        this_weights[j] = w;
@@ -134,6 +137,7 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
     *split_times = new double[split_points_vec.size()];
     *split_weights = new double[split_weights_vec.size()];
     
+    // split points
     int k = 0;
     for (auto& vec : split_points_vec){
         for (int m = 0; m < ndim; m++){
@@ -142,11 +146,13 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
         k++;
     }
 
+    // split times
     int a = 0;
     for (auto& t : split_times_vec){
         (*split_times)[a++] = t;
     }
 
+    // split weights
     int b = 0;
     for (auto& t : split_weights_vec){
         (*split_weights)[b++] = t;
@@ -158,3 +164,70 @@ int integration_loop_p(double *observations, int *observation_count, double *t,
     return boundary_state;
 }
 
+/*
+int integration_loop_direct(double *observations, int *observation_count, double *t,
+        Eigen::Map<Eigen::VectorXd> &x, coeff_call_t drift, coeff_call_t diffusion,
+        boundary_call_t boundary, split_call_t split, pcg32::state_type seed,
+         double timestep, 
+        const double *t_observe, int t_observe_count, int *split_count, double **split_times,
+        double **split_points, double **split_weights, double *this_weights, double *weight, const std::string& scheme_name){
+    int ndim = x.rows();
+    
+    scheme_t scheme_call = scheme_registry_lookup(scheme_name);
+
+    auto rng = pcg32(seed);
+    auto dist = std::normal_distribution<double>(0.0);
+
+    Eigen::VectorXd x_new(ndim);
+    Eigen::VectorXd rndvec(ndim);
+
+    // initialize last_split store
+    // last_split is equiv. to the particle spawn location at the start
+    Eigen::VectorXd x_last_split(ndim);
+    x_last_split = x;
+    double t_last_split = *t;
+
+    observations.reserve(t_observe.size());
+
+    auto observe_it = t_observe.begin();
+    int boundary_state = -1;
+    while (observe_it != t_observe.end()){
+        // boundary
+        boundary_state = boundary(*t, x.data());
+        if (boundary_state) break;
+
+        //rng(rndvec, ndim); 
+        for (int i = 0; i < ndim; i++){
+            rndvec(i) = dist(rng);
+        }
+
+        // propagation
+        *t = scheme_call(x_new, *t, x, rndvec, timestep, drift, diffusion);
+        x = x_new;
+
+        // observation
+        while (*t >= *observe_it && observe_it != t_observe.end()){
+            observations.push_back(x);
+            this_weights.push_back(*weight);
+            observe_it++;
+        }
+
+        // splitting
+        //! should happen before observation
+        //if (x(1) / x_last_split(1) >= 1.8){
+        //    std::cout << "running split with" << x(1) << ", " << x_last_split(1) << "\n";
+        //}
+        bool do_split = split(*t, x.data(), t_last_split, x_last_split.data(), *weight);
+        //std::cout << "do_split is " << do_split << "\n\n\n";
+        if (do_split && observe_it != t_observe.end()){
+            *weight /= 2;
+            x_last_split = x;
+            t_last_split = *t;
+            split_points.push_back(x);
+            split_times.push_back(*t);
+            split_weights.push_back(*weight);
+        }
+    }
+
+    return boundary_state;
+*/
