@@ -104,6 +104,7 @@ class HistogramNode(EvalNode):
     def def_kwargs(self, **kwargs):
         kwargs = {
             'bin_count' : None,
+            'edges' : None,
             'average_bin_size' : 100,
             'bin_width' : None,
             'normalize' : 'density',
@@ -147,7 +148,9 @@ class HistogramNode(EvalNode):
         else:
             rev_dim = rev
 
-        if kwargs['bin_width'] is None:
+        if not kwargs['edges'] is None:
+            bins = kwargs['edges']
+        elif kwargs['bin_width'] is None:
             bin_count = type(self)._get_bin_count(kwargs['bin_count'], kwargs['average_bin_size'], len(rev))
             if kwargs['log_bins']:
                 bins = np.logspace(np.log10(min(rev_dim)), np.log10(max(rev_dim)), bin_count + 1)
@@ -221,7 +224,7 @@ class HistogramNode(EvalNode):
                 ax.fill_between(param, hlower, hupper, step='mid', color=self.get_color(), alpha=0.5)
             # proplot where parameter not working (see github issue)
             # using edges[1:] yields the same behaviour where='mid' should
-            print("hist step max min", min(edges[1:]), max(edges[1:]), kwargs['plot_kwargs'])
+            #print("hist step max min", min(edges[1:]), max(edges[1:]), kwargs['plot_kwargs'])
             lines = ax.step(edges[1:], histogram, label=label, color=self.get_color(), linewidth=0.7, **kwargs['plot_kwargs'])
         elif kwargs['style'] == 'stairs':
             lines = [ax.stairs(histogram, edges, label=label, color=self.get_color(), baseline=1e-5, linewidth=0.7, **kwargs['plot_kwargs'])]
