@@ -23,11 +23,16 @@ class Supervisor:
 
     :param fields_total_rates: names of fields of totals that a rate (increase per second) should be calculated for.
     :type fields_total_rates: `list` of `str`. Default: same as `fields_rates` 
+
+    :param show_single_thread_log: Show stats for each thread individually when printing information
+    :type show_single_thread_log: bool, Default: False
     """
-    def __init__(self, logger=None, log_every=3, fields_cumulate=None, fields_rates=None, fields_total=None, fields_total_rates=None):
+    def __init__(self, logger=None, log_every=3, fields_cumulate=None, fields_rates=None, fields_total=None, fields_total_rates=None, show_single_thread_log=False):
         self.pipes = []
         self.threads = {}
         self._threads_lock = Lock()
+
+        self.show_single_thread_log = show_single_thread_log
 
         if logger is None:
             import logging
@@ -183,9 +188,10 @@ class Supervisor:
         for r in self.fields_total_rates:
             totalstr += r + " per second: {" + r + "_rate:g}, "
 
-        with self._threads_lock:
-            for p, info in self.threads.items():
-                self.logger.info(("Thread {p}: " + threadstr).format(p=p, **info))
+        if self.show_single_thread_log:
+            with self._threads_lock:
+                for p, info in self.threads.items():
+                    self.logger.info(("Thread {p}: " + threadstr).format(p=p, **info))
         self.logger.info(("Total: " + totalstr).format(**self.totals))
 
     @property
