@@ -73,7 +73,7 @@ def diffusion(out, t, x, Xsh, a, b, q, kappa_perp):
     out_a[1, 0] = 0
     out_a[2, 0] = 0
     out_a[0, 1] = 0
-    out_a[1, 1] = kappa_perp
+    out_a[1, 1] = np.sqrt(2.0 * kappa_perp)
     out_a[2, 1] = 0
     out_a[0, 2] = 0
     out_a[1, 2] = 0
@@ -106,17 +106,14 @@ figdir = "figures"
 name = "2d-spatial-test"
 
 
-#T = 200.0
-#t_inj = 0.05
 T = 40.0
-t_inj = 0.5
+t_inj = 0.05
 x0 = np.array([0.0, 0.0, 1.0])
 dt = 0.001
 confine_x=100
 n_particle = int(T / t_inj) 
 
 init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
-#init = [(0.0, np.copy(x0)) for i in range(n_particle)]
 
 parameters = {
         'Xsh' : 0.001215, 
@@ -127,7 +124,7 @@ parameters = {
         'kappa_perp': 0.01, 
     }
 
-sde = sdes.SDE(2, init, drift, diffusion, boundaries, split)
+sde = sdes.SDE(init, drift, diffusion, boundaries, split)
 sde.set_parameters(parameters)
 
 cache = PickleNodeCache(cachedir, name)
@@ -150,7 +147,7 @@ for T_ in obs_at:
         confine_range=[(0, -confine_x, confine_x)],
     )
     histogramx0[T_] = HistogramNode(f'histox0_{T_}', {'values' : valuesx0[T_]['values'], 'weights' : valuesx0[T_]['weights']}, log_bins=False, normalize='width', **histo_opts)
-    histogramx1[T_] = HistogramNode(f'histox1_{T_}', {'values' : valuesx1[T_]['values'], 'weights' : valuesx1[T_]['weights']}, log_bins=False, normalize='width', **histo_opts)
+    histogramx1[T_] = HistogramNode(f'histox1_{T_}', {'values' : valuesx1[T_]['values'], 'weights' : valuesx1[T_]['weights']}, log_bins=False, normalize='width', **(histo_opts | {'plot' : False}))
     histogramp[T_] = HistogramNode(f'histop_{T_}', {'values' : valuesp[T_]['values'], 'weights' : valuesp[T_]['weights']}, log_bins=True, normalize='density', **histo_opts)
 
 histogramx0_group = NodeGroup('histox0_group', histogramx0, cache=cache)
@@ -166,26 +163,30 @@ histox1s_kappa_perp = {}
 histops_kappa_perp = {}
 kappa_perps = [0.001, 0.01, 0.1, 1, 10]
 for kappa_perp in kappa_perps:
-    sde_copy = sdes.SDE(2, init, drift, diffusion, boundaries, split)
+    sde_copy = sdes.SDE(init, drift, diffusion, boundaries, split)
     sde_copy.set_parameters(parameters | {'kappa_perp': kappa_perp})
     histox0s_kappa_perp[kappa_perp] = histogramx0_group.copy(f"_kappap={kappa_perp}", last_kwargs={'sde': sde_copy})
-    histox1s_kappa_perp[kappa_perp] = histogramx1_group.copy(f"_kappap={kappa_perp}", last_kwargs={'sde': sde_copy})
+
+    histox1s_kappa_perp_unscaled = histogramx1_group.copy(f"_kappap={kappa_perp}", last_kwargs={'sde': sde_copy})
+    lnode = LambdaNode("l_kappa={kappa_perp}", histox1s_kappa_perp_unscaled[T], callback=lambda x, y, *_: (x / np.sqrt(kappa_perp), y * np.sqrt(kappa_perp)))
+    histox1s_kappa_perp[kappa_perp] = RealScatterNode("sc_kappa={kappa_perp}", {'x': lnode[0], 'y': lnode[1]}, plot=True)
+
     histops_kappa_perp[kappa_perp] = histogramp_group.copy(f"_kappap={kappa_perp}", last_kwargs={'sde': sde_copy})
 
 format_kappa_perps = NodeFigureFormat(
-        subplots={'ncols' :3, 'nrows': len(kappa_perps), 'sharex': True},
+        subplots={'ncols' :3, 'nrows': 1, 'sharex': False},
         fig_format={'yscale': 'log', 'yformatter': 'log', 'figtitle': 'Perpendicular diffusion test'},
-        axs_format=[{'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$z$'},
-                    {'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$x$'},
-                    {'xscale': 'log', 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'}] * len(kappa_perps),
-        legends_kw=[None, None, {'loc': 'ur', 'ncols': 1}] * len(kappa_perps)
+        axs_format=[{'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$\\parallel$'},
+                    {'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$\\perp$ scaled with $\\kappa_\\perp^{-1/2}$'},
+                    {'xscale': 'log', 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'}],
+        legends_kw=[None, None, {'loc': 'ur', 'ncols': 1}]
     )
 
-nfig_kappa_perp_double = NodeFigure(formats.doublehist)
+nfig_kappa_perp_double = NodeFigure(format_kappa_perps)
 for i, kappa_perp in enumerate(kappa_perps):
     kappa_perp = float(kappa_perp)
     nfig_kappa_perp_double.add(histox0s_kappa_perp[kappa_perp][T], 0, label=f"$\kappa_\perp={kappa_perp:.2}$")
-    nfig_kappa_perp_double.add(histox1s_kappa_perp[kappa_perp][T], 1, label=f"$\kappa_\perp={kappa_perp:.2}$")
+    nfig_kappa_perp_double.add(histox1s_kappa_perp[kappa_perp], 1, label=f"$\kappa_\perp={kappa_perp:.2}$")
     nfig_kappa_perp_double.add(histops_kappa_perp[kappa_perp][T], 2, label=f"$\kappa_\perp={kappa_perp:.2}$")#, label="test")
 nfig_kappa_perp_double.savefig(figdir + '/' + name + '-kappa_perp-triple.pdf')
 
