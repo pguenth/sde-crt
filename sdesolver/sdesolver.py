@@ -29,7 +29,7 @@ class SDE:
     - parameters for those
     - boundaries
     - initial condition (list of 2-tuples of t and [x])
-    - number of dimensions of the problem
+    - number of dimensions of the problem (inferred from the initial condition)
 
     The coefficient and boundary callbacks can be set either by passing 
     callbacks to the constructor or by overriding the respective 
@@ -39,9 +39,6 @@ class SDE:
     :py:class:`SDECallbackCoeff` classes respectively. FIXME: Is this tested?
     It will probably not work because of the self parameter in the inherited
     functions.
-
-    :param ndim: Number of dimensions
-    :type ndim: int
 
     :param initial_condition: A set of pseudo particles that should be propagated.
     :type initial_condition: List of tuples (t, [x])
@@ -58,17 +55,23 @@ class SDE:
         with the same name. `(Default: None)`
     :type boundary: function (t, x) -> int
 
-
     """
 
-    def __init__(self, ndim, initial_condition, drift=None, diffusion=None, boundary=None, split=None):
+    def __init__(self, initial_condition, drift=None, diffusion=None, boundary=None, split=None):
+        if isinstance(initial_condition, int):
+            raise ValueError("specifying ndim is deprecated")
+
         self._set_callback(drift, "drift", SDECallbackCoeff)
         self._set_callback(diffusion, "diffusion", SDECallbackCoeff)
         self._set_callback(boundary, "boundary", SDECallbackBoundary)
         self._set_callback(split, "split", SDECallbackSplit)
         
         self.initial_condition = initial_condition
-        self.ndim = ndim
+        self.ndim = len(initial_condition[0][1])
+
+        # check initial condition for consistency
+        for t, x in initial_condition:
+            assert len(x) == self.ndim
 
     def _set_callback(self, arg, name, decorator):
         # decide where the callback is sourced from
