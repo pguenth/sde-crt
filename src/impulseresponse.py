@@ -181,17 +181,23 @@ class MeshgridTimeseriesNode(EvalNode):
 
 class GreensFunction(EvalNode):
     """
-    Collects values from a set of ValueNodes (values of the parent dict) given
+    Collects values from a set of HistogramNodes (values of the parent dict) given
     for several T (keys of the parent dict) so that they can be convolved with 
     InjectionConvolveHistogram
     """
     def def_kwargs(self, **kwargs):
-        return {'plot_kwargs' : {}} | kwargs
+        return {'plot_kwargs' : {},
+                'log' : True} | kwargs
 
     def plot(self, data, ax, common, **kwargs):
         vs, Ts, Ns, _ = data
         mesh_T, mesh_v = np.meshgrid(Ts, vs)
-        return ax.pcolormesh(mesh_T, mesh_v, np.log(Ns), **(kwargs['plot_kwargs']))
+
+        if kwargs['log']:
+            Ns = np.log10(Ns)
+            #! TODO this was recently changed from log to log10, which is more useful but may produce different plots
+
+        return ax.pcolormesh(mesh_T, mesh_v, Ns, **(kwargs['plot_kwargs']))
 
     def do(self, parent_data, common, **kwargs):
         """
@@ -259,6 +265,8 @@ class InjectionConvolveHistogram(EvalNode):
 class ConvolveExtract(EvalNode):
     """
     Base class for ValueExtract and TimeSeriesExtract.
+    
+    TODO: this should probably support interpolation between bins
     """
     def def_kwargs(self, **kwargs):
         return {'plot_kwargs' : {},

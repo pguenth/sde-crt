@@ -97,13 +97,18 @@ class HistogramElectronEnergyDistribution(EvalNode):
     """
     def do(self, parent_data, common, p_inj, n0, **kwargs):
         p_code_center, dfdp, err, p_code = parent_data['histogram']
-        dndE = n0 * dfdp / (p_inj * constants.c)
+        dndE = n0 * dfdp / (p_inj * constants.c) # should that be p_code_center instead of p_inj? would also change spectral index
         E = p_code * p_inj * constants.c
         return CallableFromHistogram(E, dndE)
 
         # TableModel seems to fail for zeros in the histogram
         E_center = p_code_center * p_inj * constants.c
         return TableModel(E_center, dndE)
+    
+    def plot(self, data, ax, common, plot_range=(1e-3*u.eV, 1e14*u.eV), **kwargs):
+        energies = np.logspace(np.log10(plot_range[0] / u.eV).value, np.log10(plot_range[1] / u.eV).value, 100) * u.eV
+        sed = data(energies)
+        return ax.plot(sed, energies)
 
 class NaimaRadiationWrapper(EvalNode):
     def def_kwargs(self, **kwargs):
@@ -130,7 +135,7 @@ class NaimaRadiationWrapper(EvalNode):
 
 class SynchrotronNaima(NaimaRadiationWrapper):
     def do(self, parent_data, common, energy_range, B, distance, **kwargs):
-        synmodel = Synchrotron(parent_data['electron_distribution'], B=B)
+        synmodel = Synchrotron(parent_data['electron_distribution'], B=B, Eemin=1.0*u.MeV)
         sed = synmodel.sed(energy_range, distance=distance)
         flux = synmodel.flux(energy_range, distance=distance)
         logging.info(f"We = {synmodel.compute_We(constants.c**2 * constants.m_e * 1e1, constants.c**2 * constants.m_e * 1e8)}")
@@ -170,11 +175,11 @@ class SSCNaima(NaimaRadiationWrapper):
 
     def do(self, parent_data, common, energy_range, source_size, distance, B, **kwargs):
         # https://naima.readthedocs.io/en/latest/radiative.html#synchroton-self-compton
-        synmodel = Synchrotron(parent_data['electron_distribution'], B=B)
+        synmodel = Synchrotron(parent_data['electron_distribution'], B=B, Eemin=1.0*u.MeV)
         Lsyn = synmodel.flux(energy_range, distance=0 * u.cm)
         phdens = Lsyn / (4 * np.pi * source_size**2 * constants.c) * 2.24
 
-        icmodel = InverseCompton(parent_data['electron_distribution'], [["SSC", energy_range, phdens]])
+        icmodel = InverseCompton(parent_data['electron_distribution'], [["SSC", energy_range, phdens]], Eemin=1.0*u.MeV)
         sed = icmodel.sed(energy_range, distance=distance)
         flux = icmodel.flux(energy_range, distance=distance)
 
@@ -443,3 +448,5 @@ class SynchrotronDeltaApprox(SynchrotronBase):
         print(nus[0].unit)
         print(synchro[0].unit)
         return nus, synchro
+
+        
