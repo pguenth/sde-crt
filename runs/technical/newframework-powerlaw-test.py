@@ -78,10 +78,10 @@ def boundaries(t, x):
     else:
         return 0
 
-def nosplit(t, x, last_t, last_x):
+def nosplit(t, x, last_t, last_x, w):
     return False
 
-def split(t, x, last_t, last_x):
+def split(t, x, last_t, last_x, w):
     if x[1] / last_x[1] >= 1.8:#1.41:
         return True
     else:
@@ -114,8 +114,8 @@ parameters = {
         'q' : 1,
     }
 
-sde = sdes.SDE(2, init, drift, diffusion, boundaries, split)
-sde_nosplit = sdes.SDE(2, init, drift, diffusion, boundaries, nosplit)
+sde = sdes.SDE( init, drift, diffusion, boundaries, split)
+sde_nosplit = sdes.SDE(init, drift, diffusion, boundaries, nosplit)
 
 sde.set_parameters(parameters)
 sde_nosplit.set_parameters(parameters)
