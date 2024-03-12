@@ -27,6 +27,25 @@ import ctypes
 import warnings
 
 #warnings.simplefilter("error", np.VisibleDeprecationWarning)
+def param_from_numerical(dx_adv, delta, sigma, beta_s, r, n_timesteps):
+    """
+    from outdated chains.py
+    """
+    dx_diff = dx_adv / delta
+
+    dt = (dx_adv - dx_diff / 4) / beta_s
+    q = dt / (dx_adv / dx_diff - 0.25)**2
+    assert q > 0
+    assert dt > 0
+    Xsh = dx_adv * (1 - sigma) + sigma * dx_diff
+    Tmax = n_timesteps * dt
+
+    a = beta_s / 2 * (1 + 1 / r)
+    b = beta_s / 2 * (r - 1) / r
+   
+    param_sim = {'beta_s' : beta_s, 'kappa_par' : q * beta_s**2, 'z_s' : Xsh, 'dt' : dt, 'Tmax' : Tmax, 'r' : r, 'a_beta' : a, 'b_beta' : b}
+    param_num = {'dx_adv' : dx_adv, 'dx_diff' : dx_diff, 'delta' : delta, 'sigma' : sigma}
+    return param_sim, param_num
 
 from sdesolver.util.cprint import cprint_double_cfunc
 @njit(i1(f8))
@@ -57,14 +76,13 @@ def tanh_profile_diff(x, width, b):
 def drift(out, t, x, z_s, a_beta, b_beta, a_alpha, b_alpha, k_syn):
     a = tanh_profile(x[1], z_s, a_alpha, b_alpha)
     beta = tanh_profile(x[1], z_s, a_beta, b_beta)
-    dadz = tanh_profile_diff(x[1], z_s, b_alpha)
     dbetadz = tanh_profile_diff(x[1], z_s, b_beta)
     sina = np.sin(a)
     cosa = np.cos(a)
 
-    out[0] = np.cos(2 * a) * dadz - beta * sina
-    out[1] = - 2 * np.sin(2 * a) * dadz + beta * cosa
-    out[2] = - x[2] * ((cosa * dbetadz + beta * sina * dadz) / 3 + k_syn * x[2])
+    out[0] = - beta * sina
+    out[1] = beta * cosa
+    out[2] = - x[2] * (cosa * dbetadz / 3 + k_syn * x[2])
 
 def diffusion(out, t, x, z_s, a_alpha, b_alpha, kappa_perp, kappa_par):
     #a = alpha_u if x < 0 else alpha_d
@@ -76,7 +94,7 @@ def diffusion(out, t, x, z_s, a_alpha, b_alpha, kappa_perp, kappa_par):
     # z: perp to shock (not neccessarily B), x: parallel to shock
     diff_xx = np.sqrt(2 * (ksum - c2a * kdiff))
     diff_zz = np.sqrt(2 * (ksum + c2a * kdiff))
-    diff_anisotrope = np.sqrt(- 2 * kdiff * s2a)
+    diff_anisotrope = np.sqrt(np.abs(- 2 * kdiff * s2a))
 
     # here carray is required to reshape the contiguous pointer
     out_a = carray(out, (3, 3))
@@ -114,17 +132,8 @@ def split(t, x, last_t, last_x, w):
 cachedir = "cache"
 figdir = "figures"
 
-name = "2d-oblique-test"
+name = "2d-oblique-test-noalphagrad"
 
-
-T = 40.0
-t_inj = 0.01
-x0 = np.array([0.0, 0.0, 1.0])
-dt = 0.001
-confine_x=100
-n_particle = int(T / t_inj) 
-
-init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
 
 parameters = {
         'z_s' : 0.001215, 
@@ -137,6 +146,21 @@ parameters = {
         'k_syn' : 0,
     }
 
+parameters_new, _ = param_from_numerical(dx_adv=0.1, delta=0.35, sigma=0.95, beta_s=0.06, r=4, n_timesteps=40000) # not working for some reason
+#parameters_new, _ = param_from_numerical(dx_adv=0.00053, delta=0.323, sigma=0.95, beta_s=0.06, r=4, n_timesteps=20000) # the "OG" run parameters
+#parameters_new, _ = param_from_numerical(dx_adv=0.00053, delta=0.323, sigma=0.95, beta_s=0.99, r=4, n_timesteps=20000) # works qualitatively, powerlaw is steeper
+#parameters_new, _ = param_from_numerical(dx_adv=0.00053, delta=0.323, sigma=0.95, beta_s=0.06, r=3, n_timesteps=20000) # works qualitatively, powerlaw is steeper
+print(parameters_new, parameters)
+parameters |= parameters_new
+
+T = parameters['Tmax']
+n_particle = 4000
+t_inj = T / n_particle
+x0 = np.array([0.0, 0.0, 1.0])
+dt = parameters['dt']
+confine_x=100
+
+init = [(i * t_inj, np.copy(x0)) for i in range(n_particle)]
 
 cache = PickleNodeCache(cachedir, name)
 
@@ -147,7 +171,7 @@ histo_opts = {'bin_count' : 30, 'plot' : True, 'cache' : cache, 'ignore_cache' :
 def one_row(rname, param):
     sde = sdes.SDE(init, drift, diffusion, boundaries, split)
     sde.set_parameters(param)
-    solvernode = SDESolverNode(f'solver_{rname}', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=1, cache=cache, splitted=True)
+    solvernode = SDESolverNode(f'solver_{rname}', sde=sde, scheme=b'euler', timestep=dt, observation_times=obs_at, nthreads=64, cache=cache, splitted=True)
     valuesx0 = {}
     valuesx1 = {}
     valuesp = {}
@@ -168,22 +192,26 @@ def one_row(rname, param):
     histogramx1_group = NodeGroup(f'histox1_group_{rname}', histogramx1, cache=cache)
     histogramp_group = NodeGroup(f'histop_group_{rname}', histogramp, cache=cache)
 
-    return histogramx0_group, histogramx1_group, histogramp_group, valuesp[T]
+    powerlaw = MLEPowerlawNode('mlepl_' + rname, {'values' : valuesp[T]['values'], 'weights' : valuesp[T]['weights']}, plot='hist', cache=cache, ignore_cache=False)
 
-histogramx0_group, histogramx1_group, histogramp_group, *_ = one_row("", parameters)
+    return histogramx0_group, histogramx1_group, histogramp_group, valuesp[T], powerlaw
+
+histogramx0_group, histogramx1_group, histogramp_group, _, powerlaw = one_row("", parameters)
 nfig = NodeFigure(formats.triplehist)
 nfig.add(histogramx0_group, 0)
 nfig.add(histogramx1_group, 1, plot_on='hist')
 nfig.add(histogramp_group, 2)
+nfig.add(powerlaw, 2, plot_on='hist')
 
 nfig.savefig(f"{figdir}/{name}-single.pdf")
+exit()
 
 ### varying upstream angle
 
 histox0groups = {}
 histox1groups = {}
 histopgroups = {}
-alpha_u = [0.0, np.pi / 10, 3 * np.pi / 10, np.pi / 2]
+alpha_u = np.array([0.0, np.pi / 10, 3 * np.pi / 10, np.pi / 2])
 alpha_d = 0.0
 multihist = NodeFigureFormat(
         subplots={'ncols' :3, 'nrows': len(alpha_u), 'sharex': False},
@@ -196,11 +224,10 @@ multihist = NodeFigureFormat(
 nfig_multi = NodeFigure(multihist)
 for i, a_u in enumerate(alpha_u):
     p = parameters | {
-            # test this tmrrw. should lead to a result comparable (qualitatively) to alpha=0 case
             'a_alpha' : (a_u + alpha_d) / 2,
             'b_alpha' : (a_u - alpha_d) / 2,
             }
-    histogramx0_group, histogramx1_group, histogramp_group, v = one_row(f"alpha_u={a_u}", p)
+    histogramx0_group, histogramx1_group, histogramp_group, v, _ = one_row(f"alpha_u={a_u}", p)
     print(v.data)
     nfig_multi.add(histogramx0_group, i * 3 + 0)
     nfig_multi.add(histogramx1_group, i * 3 + 1, plot_on='hist')

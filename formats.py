@@ -124,3 +124,12 @@ histsandpowerlaw2 = NodeFigureFormat(
                 ],
                 legends_kw={1: {'loc': 'ur', 'ncols': 1}}
         )
+
+triplehist = NodeFigureFormat(
+        subplots={'ncols' :3, 'nrows': 1, 'sharex': False},
+        fig_format={'yscale': 'log', 'yformatter': 'log'},
+        axs_format=[{'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$x$ (parallel to shock)'},
+                    {'xscale': 'linear', 'xformatter': pplt.SciFormatter(), 'xlabel': '$z$ (perpendicular to shock)'},
+                    {'xscale': 'log', 'xformatter': pplt.SciFormatter(), 'xlabel': '$p/p_\\textrm{inj}$'}],
+        legends_kw=[None, None, {'loc': 'ur', 'ncols': 1}]
+    )
