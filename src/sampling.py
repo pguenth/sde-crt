@@ -72,4 +72,7 @@ def samples_from_pdf(pdf, N, x0, x1=None, args=None, cdf=None, range_integral_va
         
     samples = np.array(samples)
 
+    # if alpha == 0:
+    #     return samples, None
+    # else:
     return samples, 1 / alpha

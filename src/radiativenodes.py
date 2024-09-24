@@ -116,9 +116,17 @@ class NaimaRadiationWrapper(EvalNode):
                 'plot_kwargs' : {},
                 'factor' : 1,
                 'distance' : 1 * u.kpc,
+                'set_ylim' : (1e-3, 1e1)
+                'worker_pool' : None
             } | kwargs
 
         return kwargs
+
+    # def do(self, parent_data, common, **kwargs):
+    #     if 'worker_pool' is None:
+    #         self._do(parent_data, common, **kwargs)
+    #     else:
+    #         kwargs['worker_pool'].submit(self._do
 
 
     def plot(self, data, ax, common, **kwargs):
@@ -126,11 +134,13 @@ class NaimaRadiationWrapper(EvalNode):
         energies, sed, _ = data
         energies_nounit = energies.value
         sed_nounit = sed.value
-        min_plot = max(sed_nounit) / 1e3
-        max_plot = max(sed_nounit) * 1e1
+        if kwargs['set_ylim'] != False:
+            min_plot = max(sed_nounit) * kwargs['set_ylim'][0]
+            max_plot = max(sed_nounit) * kwargs['set_ylim'][1]
+            extend_axes_limits(ax, ylim=(min_plot, max_plot))
+
         if not 'color' in kwargs['plot_kwargs']:
             kwargs['plot_kwargs']['color'] = self.get_color()
-        extend_axes_limits(ax, ylim=(min_plot, max_plot))
         return ax.plot(energies_nounit, sed_nounit, label=kwargs['label'], **kwargs['plot_kwargs'])[0]
 
 class SynchrotronNaima(NaimaRadiationWrapper):
@@ -196,7 +206,9 @@ class SEDSum(NaimaRadiationWrapper):
         return kwargs
 
     def do(self, parent_data, common, **kwargs):
-        energy_range, sed_sum, flux_sum = parent_data[0]
+        energy_range = parent_data[0][0].copy()
+        sed_sum = parent_data[0][1].copy()
+        flux_sum = parent_data[0][2].copy()
         for energy_range_, sed_, flux_ in parent_data[1:]:
             if not np.all(energy_range == energy_range_):
                 raise ValueError("energy range mismatch")
@@ -450,3 +462,40 @@ class SynchrotronDeltaApprox(SynchrotronBase):
         return nus, synchro
 
         
+class NaimaAsHistogram(EvalNode):
+    """
+    takes one parent (instance of NaimaRadiationWrapper)
+    and emulates the interface of HistogramNode with its data.
+    """
+    def def_kwargs(self, **kwargs):
+        return {
+            'label' : '',
+            'plot_kwargs' : {},
+        } | kwargs
+
+    def do(self, parent_data, common, **kwargs):
+        energy, sed, flux = parent_data
+        #edges = np.concatenate(energy - np.diff(energy), np.array([energy[-1] + (energy[-2] + energy[-1]) / 2]))
+        diff = np.diff(energy)
+        edges = np.concatenate(([energy[0] - diff[0]], energy[:-1] + diff, [energy[-1] + diff[-1]]))
+
+        #print("test naima", sed)
+        return energy, sed, np.array([np.nan] * len(energy)), edges
+
+    def plot(self, v, ax, common, **kwargs):
+        energy, sed, _, _ = v
+                
+        #label = kwargs['label'].format(**(fmt_fields))
+        label = kwargs['label']
+
+        #shadedata = errors if kwargs['show_errors'] else none
+        #print(energy, sed)
+        if 'color' in kwargs['plot_kwargs']:
+            c = kwargs['plot_kwargs']['color']
+            del kwargs['plot_kwargs']['color']
+        else:
+            c = self.get_color()
+            
+        lines = ax.plot(energy, sed, label=label, color=c, **kwargs['plot_kwargs'])
+
+        return lines[0]

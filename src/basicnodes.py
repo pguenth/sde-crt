@@ -119,6 +119,8 @@ class HistogramNode(EvalNode):
             'hide_zeros' : False
         } | kwargs
 
+        kwargs['plot_kwargs'] = {"linewidth" : 0.7} | kwargs['plot_kwargs']
+
         if not kwargs['auto_normalize'] is None:
             logging.warning("The use of auto_normalize is deprecated. The parameter is ignored. Use normalize='density' instead.")
 
@@ -134,6 +136,22 @@ class HistogramNode(EvalNode):
         #    color = None
 
         #return {'color' : color}
+
+    def _get_norm(self, histogram, edges, mode):
+        if mode == 'density':
+            db = np.array(np.diff(edges), float)
+            norm = 1 / db / histogram.sum()
+        elif mode == 'width':
+            db = np.array(np.diff(edges), float)
+            norm = 1 / db
+        elif isinstance(mode, numbers.Number):
+            norm = mode
+        elif mode is None:
+            norm = 1
+        else:
+            raise ArgumentError(f"normalize mode must be density, width or a number or None. It is: {mode}")
+
+        return norm
 
     def do(self, parent_data, common, **kwargs):
         rev = np.array(parent_data['values'])
@@ -168,20 +186,11 @@ class HistogramNode(EvalNode):
             # for error estimation, use squared weights
             histogram_squareweights, _ = np.histogram(rev_dim, bins=bins, weights=weights**2, density=False)
         except ValueError as e:
-            print("verr", len(weights), len(rev_dim), "NaN: ", np.count_nonzero(np.isnan(arr)), np.isnan(arr), rev_dim)
+            print("verr", len(weights), len(rev_dim), "NaN: ", np.count_nonzero(np.isnan(rev_dim)))
             raise e
         #print(self.name, rev, bins, histogram)
         
-        if kwargs['normalize'] == 'density':
-            db = np.array(np.diff(edges), float)
-            norm = 1 / db / histogram.sum()
-        elif kwargs['normalize'] == 'width':
-            db = np.array(np.diff(edges), float)
-            norm = 1 / db
-        elif isinstance(kwargs['normalize'], numbers.Number):
-            norm = kwargs['normalize']
-        else:
-            norm = 1
+        norm = self._get_norm(histogram, edges, kwargs['normalize'])
 
         errors = histogram * np.sqrt(histogram_unweighted) / histogram_unweighted * norm * kwargs['manual_normalization_factor']
         histogram = histogram * norm * kwargs['manual_normalization_factor']
@@ -218,16 +227,17 @@ class HistogramNode(EvalNode):
         label = kwargs['label'].format(**(fmt_fields))
 
         if kwargs['style'] == 'step':
+            c = self.get_color()
             if kwargs['show_errors']:
                 hupper = histogram + errors
                 hlower = histogram - errors
-                ax.fill_between(param, hlower, hupper, step='mid', color=self.get_color(), alpha=0.5)
+                ax.fill_between(param, hlower, hupper, step='mid', color=c, alpha=0.5)#, label=f"testerror_{self.name}".replace("_", " "))
             # proplot where parameter not working (see github issue)
             # using edges[1:] yields the same behaviour where='mid' should
             #print("hist step max min", min(edges[1:]), max(edges[1:]), kwargs['plot_kwargs'])
-            lines = ax.step(edges[1:], histogram, label=label, color=self.get_color(), linewidth=0.7, **kwargs['plot_kwargs'])
+            lines = ax.step(edges[1:], histogram, label=label, color=c, **kwargs['plot_kwargs'])
         elif kwargs['style'] == 'stairs':
-            lines = [ax.stairs(histogram, edges, label=label, color=self.get_color(), baseline=1e-5, linewidth=0.7, **kwargs['plot_kwargs'])]
+            lines = [ax.stairs(histogram, edges, label=label, color=self.get_color(), baseline=1e-5, **kwargs['plot_kwargs'])]
         elif kwargs['style'] == 'line':
             shadedata = errors if kwargs['show_errors'] else None
             lines = ax.plot(param, histogram, shadedata=shadedata, label=label, color=self.get_color(), **kwargs['plot_kwargs'])
@@ -612,7 +622,6 @@ class RealScatterNode(EvalNode):
         return kwargs
 
     def do(self, parent_data, common, **kwargs):
-        print("test123")
         return parent_data['x'], parent_data['y']
 
     def plot(self, data, ax, common, **kwargs):
@@ -721,12 +730,11 @@ class CutoffFindNode(EvalNode):
 
         x_cutoff = (y_cutoff - y[count - 1] + m * x[count - 1]) / m
 
-        print(self.name, x_cutoff, y_cutoff)
+        print("cutoffnode", self.name, x_cutoff, y_cutoff)
         return x_cutoff, y_cutoff
 
     def plot(self, data, ax, common, **kwargs):
         x, y = data
-        print('asdf')
         ax.axhline(y)
         ax.axvline(x)
         return ax.axhline(y), ax.axvline(x)
@@ -764,9 +772,59 @@ class HistogramIntegrateNode(HistogramNode):
         return x, y_int, [0] * len(y)
 
 class VLineNode(EvalNode):
+    def def_kwargs(self, **kwargs):
+        return {'plot_kwargs' : {}} | kwargs
+
     def do(self, parent_data, common, **kwargs):
+        # import pprint
+        # pprint.pprint(common)
+        # print(kwargs)
         return kwargs['callback'](parent_data, common, **kwargs)
 
     def plot(self, data, ax, common, **kwargs):
-        ax.axvline(data)
+        kw = {'color': self.get_color()} | kwargs['plot_kwargs']
+        return ax.axvline(data, **kw)
 
+
+class SumHistogram(HistogramNode):
+    """
+    sum up a list of histograms
+    """
+    def do(self, parent_data, common, **kwargs):
+        param = None
+        histogram = None
+        errors = None
+        edges = None
+        for p, h, e, ed in parent_data:
+            if param is None:
+                param = p.copy()
+                histogram = h.copy()
+                errors = e.copy()
+                edges = ed.copy()
+            else:
+                if not (param == p).all():
+                    raise ValueError("Param of histograms to sum should be the same")
+                histogram += h
+                errors += e # this is wrong
+                if not (edges == ed).all():
+                    raise ValueError("Edges of histograms to sum should be the same")
+
+        norm = self._get_norm(histogram, edges, kwargs['normalize'])
+
+        errors = errors * norm * kwargs['manual_normalization_factor']
+        histogram = histogram * norm * kwargs['manual_normalization_factor']
+
+        return param, histogram, errors, edges
+
+class ConcatValues(EvalNode):
+    """
+    Concatenate a list of ValueNodes
+    """
+    def do(self, parent_data, common, **kwargs):
+        val = np.empty(0)
+        w = np.empty(0)
+        for v in parent_data:
+            val = np.concatenate((val, v['values']))
+            w = np.concatenate((w, v['weights']))
+
+        return {'values': val, 'weights' : w}

@@ -1,6 +1,8 @@
 from grapheval.node import EvalNode
 import functools
 import numpy as np
+from numbers import Real
+from scipy import interpolate, integrate
 
 def _concat_w(w):
     """
@@ -187,7 +189,8 @@ class GreensFunction(EvalNode):
     """
     def def_kwargs(self, **kwargs):
         return {'plot_kwargs' : {},
-                'log' : True} | kwargs
+                'log' : True,
+                'set_ylims' : False} | kwargs
 
     def plot(self, data, ax, common, **kwargs):
         vs, Ts, Ns, _ = data
@@ -197,6 +200,9 @@ class GreensFunction(EvalNode):
             Ns = np.log10(Ns)
             #! TODO this was recently changed from log to log10, which is more useful but may produce different plots
 
+        if kwargs['set_ylims']:
+            lims = min(vs), max(vs)
+            ax.format(ylim=(lims))
         return ax.pcolormesh(mesh_T, mesh_v, Ns, **(kwargs['plot_kwargs']))
 
     def do(self, parent_data, common, **kwargs):
@@ -265,41 +271,69 @@ class InjectionConvolveHistogram(EvalNode):
 class ConvolveExtract(EvalNode):
     """
     Base class for ValueExtract and TimeSeriesExtract.
-    
-    TODO: this should probably support interpolation between bins
     """
     def def_kwargs(self, **kwargs):
         return {'plot_kwargs' : {},
-                'normalize': 'density'
+                'normalize': 'density',
+                'interpolation' : 'log',
+                'integration_method': 'quad',
                 } | kwargs
 
     def plot(self, data, ax, common, **kwargs):
         return ax.plot(data[0], data[1], **(kwargs['plot_kwargs']))
 
     def do(self, parent_data, common, **kwargs):
-        vs, Ts, Ns, v_edges = parent_data
-        x, N = self._get_extract(vs, Ts, Ns, kwargs)
+        vs, Ts, Ns_src, v_edges = parent_data
+        x, xs, ys, Ns = self._get_extract(vs, Ts, Ns_src, kwargs)
+
+        if kwargs['interpolation'] == 'log':
+            interp = lambda x : np.exp(interpolate.interp1d(np.log(xs), np.log(Ns), axis=0)(np.log(x)))
+        elif kwargs['interpolation'] == 'linear':
+            interp = interpolate.interp1d(xs, Ns, axis=0)
+        elif kwargs['interpolation'] == 'neighbor':
+            def interp(x):
+                idx = np.argmin(np.abs(x - xs))
+                return Ns[idx]
+        else:
+            raise ValueError("interpolation must be one of 'log', 'linear', 'neighbor'")
+
+        if isinstance(x, Real):
+            N = interp(x)
+        elif kwargs['integration_method'] == 'quad':
+            N = []
+            for i in range(len(ys)):
+                n, *_ = integrate.quad(lambda v : interp(v)[i], x[0], x[1])
+                N.append(n)
+            N = np.array(N)
+        else:
+            raise ValueError("x (extraction variable) must be either a real number or a tuple of 2 numbers. integration_method must be one of 'quad'")
 
         if kwargs['normalize'] == 'density':
             db = self._get_db(Ts, v_edges)
-            norm = 1 / db / N.sum()
+            # ignore nan because it will lead to the sum being nan
+            s = N.sum(where=np.logical_not(np.isnan(N)))
+            norm = 1 / db / s
+        elif kwargs['normalize'] == 'width':
+            if isinstance(x, Real):
+                raise ValueError("normalize='width' is only defined for a range")
+            norm = 1 / (x[1] - x[0])
         else:
             norm = 1
 
-        return x, N * norm
+
+        return ys, N * norm
 
 class ValueExtract(ConvolveExtract):
     """
     Extract the histogram for the value from a InjectionConvolveHistogram node.
-    Give the time as kwarg T. The nearest possible time is selected.
+    Give the time as kwarg T.
     """
     def _get_db(self, Ts, v_edges):
         return np.diff(v_edges)
 
     def _get_extract(self, vs, Ts, Ns, kwargs):
         T = kwargs['T']
-        idx = np.argmin(np.abs(T - Ts))
-        return vs, Ns.T[idx]
+        return T, Ts, vs, Ns.T
 
 class TimeSeriesExtract(ConvolveExtract):
     """
@@ -307,8 +341,7 @@ class TimeSeriesExtract(ConvolveExtract):
     """
     def _get_extract(self, vs, Ts, Ns, kwargs):
         v = kwargs['v']
-        idx = np.argmin(np.abs(v - vs))
-        return Ts, Ns[idx]
+        return v, vs, Ts, Ns
 
 class Residual(EvalNode):
     def def_kwargs(self, **kwargs):
