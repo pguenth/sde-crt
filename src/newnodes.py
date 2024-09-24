@@ -6,9 +6,9 @@ import copy
 import numpy as np
 
 class SDESolverNode(EvalNode):
-    def do(self, parent_data, common, sde, scheme, timestep, observation_times, nthreads=4, supervise=True, **kwargs):
+    def do(self, parent_data, common, sde, scheme, timestep, observation_times, nthreads=4, supervise=True, particle_count_limit=np.inf, **kwargs):
         solver = SDESolver(scheme)
-        return solver.solve(sde, timestep, observation_times, nthreads=nthreads, supervise=supervise)
+        return solver.solve(sde, timestep, observation_times, nthreads=nthreads, supervise=supervise, particle_count_limit=particle_count_limit)
 
 class SDEEscapeFluxNode(EvalNode):
     """

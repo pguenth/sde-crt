@@ -18,7 +18,7 @@ import numpy as np
 #from sdesolver.supervisor import Supervisor
 from .sdecallback import SDECallbackBase, SDECallbackCoeff, SDECallbackBoundary, SDECallbackSplit
 from .loop.pyloop import py_integration_loop
-from .util.datastructures import SDEPPStateOldstyle
+from .util.datastructures import SDEPPStateOldstyle, SDEPseudoParticle
 from .supervisor import Supervisor
 
 class SDE:
@@ -194,6 +194,21 @@ class SDE:
 
         return True
 
+    def copy(self, parameters=None, initial_condition=None, drift=None, diffusion=None, boundary=None, split=None):
+        """
+        Make a copy of this SDE, changing the properties that are given to this method
+        """
+        c = type(self)(self.initial_condition if initial_condition is None else initial_condition,
+                       self.drift.pyfunc if drift is None else drift, 
+                       self.diffusion.pyfunc if diffusion is None else diffusion, 
+                       self.boundary.pyfunc if boundary is None else boundary,
+                       self.split.pyfunc if split is None else split)
+        c.set_parameters(self.parameters if parameters is None else parameters)
+        return c
+
+    def __str__(self):
+        return f"SDE with parameters {self.parameters} and initial condition {self.initial_condition}"
+
 class SDESolution:
     """
     Numerical solution of a stochastic differential equation.
@@ -205,6 +220,8 @@ class SDESolution:
     def __init__(self, sde):
         self.sde = copy.copy(sde)
         self.observations = {}
+        self.particle_count = 0
+        self.observation_count = 0
         self._escaped_lists = {}
         #self._escaped_arrays = {}
         #self._escaped_updated = True
@@ -216,7 +233,10 @@ class SDESolution:
             print("obspos", len(observation_times), len(positions), len(weights))
             raise e
 
+        self.particle_count += 1
+
         for t, x, w in list(zip(observation_times, positions.copy(), weights)):
+            self.observation_count += 1
             if not t in self.observations:
                 self.observations[t] = {'x': [x], 'weights': [w]}
             else:
@@ -227,6 +247,10 @@ class SDESolution:
         """
         Get the observed pseudo particles at one of the times.
         """
+        if s not in self.observation_times:
+            logging.warning(f"Key {s} not found in SDESolution, returning empty arrays...")
+            return {'x': np.empty(0), 'weights': np.empty(0)}
+
         self.observations[s] = {k : np.array(v) for k, v in self.observations[s].items()}
         return self.observations[s]
 
@@ -357,7 +381,7 @@ class SDESolver:
         return particle_info, split_info, time_cpp
 
     @staticmethod
-    def solve_slice(sde, timestep, observation_times, scheme, seeds_slice, init, supervisor_pipe=None):
+    def solve_slice(sde, timestep, observation_times, scheme, seeds_slice, init, supervisor_pipe=None, skip_splits=False):
         """
         Solve a set (slice) of pseudo-particles using :py:func:`solve_one`.
 
@@ -394,8 +418,14 @@ class SDESolver:
             # crop observation_times_slice to account for escaped particles
             pinfo['observation_times_slice'] = observation_times_slice[:len(pinfo['observations'])]
 
+            if skip_splits:
+                # reset weights to start (if split particles will be ignored)
+                pinfo['weights'] = np.array([w] * len(pinfo['observations']))
+                pinfo['final_weight'] = w
+            else:
+                splits += sinfo
+
             particles.append(pinfo)
-            splits += sinfo
             total_time_cpp += time_cpp
 
             if supervisor_pipe is not None and len(particles) % 100 == 0:
@@ -409,7 +439,7 @@ class SDESolver:
             supervisor_pipe.close()
         return particles, splits
 
-    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor=None, sdesolution=None):
+    def schedule_slices(self, sde, timestep, observation_times, seed_stream, init, pool, supervisor=None, sdesolution=None, particle_count_limit=np.inf):
         """
         Apply the slices of a set pseudo-particles to a thread pool, 
         using :py:func:`solve_one`. Returns a SDESolution instance
@@ -452,6 +482,8 @@ class SDESolver:
             return
 
         collected_split_starts = []
+        
+        skip_splits = sdesolution.particle_count >= particle_count_limit
 
         for mod in range(nthreads):
             if supervisor is not None:
@@ -463,7 +495,7 @@ class SDESolver:
             init_slice = init[mod::nthreads]
             seeds = seed_stream.integers(sys.maxsize, size=len(init_slice))
             slice_args = (sde, timestep, observation_times, self.scheme,
-                          seeds, init_slice, send)
+                          seeds, init_slice, send, skip_splits)
 
             asr = pool.apply_async(self.solve_slice, slice_args)
             asyncresults.append(asr)
@@ -480,18 +512,18 @@ class SDESolver:
 
             collected_split_starts += splits
 
-        self.schedule_slices(sde, timestep, observation_times, seed_stream, collected_split_starts, pool, supervisor=supervisor, sdesolution=sdesolution)
+        self.schedule_slices(sde, timestep, observation_times, seed_stream, collected_split_starts, pool, supervisor=supervisor, sdesolution=sdesolution, particle_count_limit=particle_count_limit)
 
-        import pickle
-        with open("splits.pickle", mode="wb") as f:
-            pickle.dump(collected_split_starts, f)
+        # import pickle
+        # with open("splits.pickle", mode="wb") as f:
+        #     pickle.dump(collected_split_starts, f)
 
         return sdesolution
 
     def _format_time(self, t):
         return "{}s{}ms{}us".format(int(t), int(int(t * 1e3) % 1e3), int(int(t * 1e6) % 1e6))
 
-    def solve(self, sde, timestep, observation_times, seed_stream=None, nthreads=4, supervise=True):
+    def solve(self, sde, timestep, observation_times, seed_stream=None, nthreads=4, supervise=True, particle_count_limit=np.inf):
         """
         Solve a SDE with this solver using multiple threads.
 
@@ -541,7 +573,7 @@ class SDESolver:
 
         print("sde drift:", ", ".join([f"{k}: {v}" for k, v in sde.drift.parameters.items()]))
         print("sde diffusion:", ", ".join([f"{k}: {v}" for k, v in sde.diffusion.parameters.items()]))
-        sdesolution = self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, supervisor=supervisor)
+        sdesolution = self.schedule_slices(sde, timestep, observation_times, seed_stream, init_copy, pool, supervisor=supervisor, particle_count_limit=particle_count_limit)
 
         end = time.perf_counter()
 
