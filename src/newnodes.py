@@ -28,28 +28,26 @@ class SDEValuesNode(EvalNode):
     def do(self, parent_data, common, index, confinements=[], confine_range=[], **kwargs):
         # filter points
         points = copy.copy(parent_data['x'])
+        print("vnode", self.name, confinements, confine_range) 
+        if 'weights' in parent_data:
+            weights = copy.copy(parent_data['weights'])
 
         for conf_idx, conf_cond in confinements:
             points = [p for p in points if conf_cond(p[conf_idx])]
+            if 'weights' in parent_data:
+                weights = [w for p, w in zip(points, weights) if conf_cond(p[conf_idx])]
 
         for conf_idx, conf_min, conf_max in confine_range:
             points = [p for p in points if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
+            if 'weights' in parent_data:
+                weights = [w for p, w in zip(points, weights) if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
 
         if len(points) == 0:
             ret = {'values': np.array([])}
         else:
             ret = {'values' : np.array(points).T[index]}
 
-        # filter weights
         if 'weights' in parent_data:
-            weights = copy.copy(parent_data['weights'])
-            points = copy.copy(parent_data['x'])
-            for conf_idx, conf_cond in confinements:
-                weights = [w for p, w in zip(points, weights) if conf_cond(p[conf_idx])]
-
-            for conf_idx, conf_min, conf_max in confine_range:
-                weights = [w for p, w in zip(points, weights) if conf_min <= p[conf_idx] and conf_max >= p[conf_idx]]
-
             ret['weights'] = np.array(weights)
 
         #if index == 1:
@@ -61,6 +59,7 @@ class SDEValuesNode(EvalNode):
         #    if b > 0:
         #        print("negative momentum detected in {}/{} particles at node {}".format(b, len(v_array), self.name))
 
+        assert len(ret['values']) == len(ret['weights'])
         return ret
 
 #SDEValues('val', PassiveNode('p', points='Test'))
